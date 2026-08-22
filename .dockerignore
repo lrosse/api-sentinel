@@ -1,0 +1,9 @@
+.git
+.github
+.env
+.vs
+**/bin
+**/obj
+client/node_modules
+client/.angular
+client/dist

@@ -1,0 +1,21 @@
+# Local secrets
+.env
+.env.local
+
+# .NET
+**/bin/
+**/obj/
+.vs/
+
+# Angular / Node
+client/node_modules/
+client/.angular/
+client/dist/
+
+# Editors and OS
+.idea/
+.vscode/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
