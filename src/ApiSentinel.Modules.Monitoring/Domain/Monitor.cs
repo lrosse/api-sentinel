@@ -9,6 +9,8 @@ public sealed class Monitor
     public int TimeoutMs { get; set; }
     public int ExpectedStatusCode { get; set; }
     public int? MaxLatencyMs { get; set; }
+    public int IntervalSeconds { get; set; }
+    public bool Enabled { get; set; }
     public List<string> IgnoredPaths { get; set; } = [];
     public required Endpoint Endpoint { get; set; }
     public List<CheckRun> CheckRuns { get; set; } = [];

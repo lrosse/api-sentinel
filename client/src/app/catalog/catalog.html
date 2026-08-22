@@ -1,6 +1,12 @@
 <div class="app-shell">
   <header class="topbar">
-    <a class="brand" routerLink="/catalog">API Sentinel</a>
+    <div class="topbar__navigation">
+      <a class="brand" routerLink="/dashboard">API Sentinel</a>
+      <nav class="topbar__nav" aria-label="Navegação principal">
+        <a class="topbar__link" routerLink="/dashboard">Dashboard</a>
+        <a class="topbar__link topbar__link--active" routerLink="/catalog">Catálogo</a>
+      </nav>
+    </div>
     <div class="topbar__account">
       <span>{{ currentUser()?.email }}</span>
       <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
@@ -10,11 +16,15 @@
   <main class="page">
     <section class="page-heading">
       <div>
-        <p class="eyebrow">Marco 2 · Catálogo e monitoramento</p>
+        <p class="eyebrow">Marco 3 · Catálogo e agendamento</p>
         <h1>Suas APIs</h1>
-        <p class="muted">Cadastre serviços e endpoints; abra uma rota para configurar e executar monitores.</p>
+        <p class="muted">
+          Cadastre serviços e endpoints; abra uma rota para configurar e executar monitores.
+        </p>
       </div>
-      <span class="count-badge">{{ services().length }} {{ services().length === 1 ? 'API' : 'APIs' }}</span>
+      <span class="count-badge"
+        >{{ services().length }} {{ services().length === 1 ? 'API' : 'APIs' }}</span
+      >
     </section>
 
     @if (error()) {
@@ -47,7 +57,12 @@
           </label>
           <label>
             Descrição <span class="optional">opcional</span>
-            <textarea name="description" [(ngModel)]="description" rows="3" maxlength="1000"></textarea>
+            <textarea
+              name="description"
+              [(ngModel)]="description"
+              rows="3"
+              maxlength="1000"
+            ></textarea>
           </label>
           <label>
             Tags <span class="optional">separadas por vírgula</span>

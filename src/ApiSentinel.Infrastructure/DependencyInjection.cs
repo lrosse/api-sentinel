@@ -1,7 +1,9 @@
 using ApiSentinel.Infrastructure.Persistence;
+using ApiSentinel.Infrastructure.Scheduling;
 using ApiSentinel.Modules.ApiCatalog;
 using ApiSentinel.Modules.Identity;
 using ApiSentinel.Modules.Monitoring;
+using ApiSentinel.Modules.Monitoring.Scheduling;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.DataProtection;
@@ -58,6 +60,7 @@ public static class DependencyInjection
                 }));
 
             services.AddHangfireServer();
+            services.AddSingleton<IMonitorScheduleManager, HangfireMonitorScheduleManager>();
         }
 
         return services;

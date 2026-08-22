@@ -6,6 +6,7 @@ namespace ApiSentinel.Modules.Monitoring;
 
 public interface IMonitoringDbContext
 {
+    DbSet<ApiService> ApiServices { get; }
     DbSet<Endpoint> Endpoints { get; }
     DbSet<Domain.Monitor> Monitors { get; }
     DbSet<CheckRun> CheckRuns { get; }

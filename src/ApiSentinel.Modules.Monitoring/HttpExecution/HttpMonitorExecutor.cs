@@ -120,7 +120,7 @@ internal sealed partial class HttpMonitorExecutor(
             // Request/response headers and body content are deliberately absent from logs.
             // A query string may carry a credential, so the full target URI is not logged either.
             logger.LogInformation(
-                "Manual check {CheckRunId} for monitor {MonitorId} finished with {Status} in {LatencyMs} ms.",
+                "Check {CheckRunId} for monitor {MonitorId} finished with {Status} in {LatencyMs} ms.",
                 result.Id,
                 monitor.Id,
                 result.Status,

@@ -1,0 +1,140 @@
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar__navigation">
+      <a class="brand" routerLink="/dashboard">API Sentinel</a>
+      <nav class="topbar__nav" aria-label="Navegação principal">
+        <a class="topbar__link topbar__link--active" routerLink="/dashboard">Dashboard</a>
+        <a class="topbar__link" routerLink="/catalog">Catálogo</a>
+      </nav>
+    </div>
+    <div class="topbar__account">
+      <span>{{ currentUser()?.email }}</span>
+      <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">Marco 3 · Visão operacional</p>
+        <h1>Dashboard</h1>
+        <p class="muted">O último estado de cada monitor, agregado por API.</p>
+      </div>
+      <button
+        class="button button--secondary"
+        type="button"
+        [disabled]="loading()"
+        (click)="refresh()"
+      >
+        {{ loading() ? 'Atualizando…' : 'Atualizar' }}
+      </button>
+    </section>
+
+    @if (error()) {
+      <p class="alert" role="alert">{{ error() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="panel empty-state">Carregando estado dos monitores…</p>
+    } @else if (apiServices().length === 0) {
+      <div class="panel empty-state">
+        <strong>Nenhuma API cadastrada.</strong>
+        <a class="back-link" routerLink="/catalog">Abrir o catálogo</a>
+      </div>
+    } @else {
+      <section class="dashboard-list" aria-label="Estado das APIs">
+        @for (apiService of apiServices(); track apiService.id) {
+          <article class="panel dashboard-api">
+            <div class="dashboard-api__heading">
+              <div>
+                <p class="panel__kicker">API monitorada</p>
+                <h2>
+                  <a [routerLink]="['/api-services', apiService.id]">{{ apiService.name }}</a>
+                </h2>
+              </div>
+              <span class="count-badge">
+                {{ apiService.monitors.length }}
+                {{ apiService.monitors.length === 1 ? 'monitor' : 'monitores' }}
+              </span>
+            </div>
+
+            @if (apiService.monitors.length === 0) {
+              <p class="dashboard-api__empty">Nenhum monitor configurado para esta API.</p>
+            } @else {
+              <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Monitor</th>
+                      <th>Status</th>
+                      <th>Última execução</th>
+                      <th>Latência</th>
+                      <th>Falhas consecutivas</th>
+                      <th>Agendamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (monitor of apiService.monitors; track monitor.id) {
+                      <tr>
+                        <td>
+                          <a
+                            class="dashboard-endpoint"
+                            [routerLink]="['/endpoints', monitor.endpointId]"
+                          >
+                            <span class="method method--{{ monitor.endpointMethod.toLowerCase() }}">
+                              {{ monitor.endpointMethod }}
+                            </span>
+                            <code>{{ monitor.endpointPath }}</code>
+                          </a>
+                        </td>
+                        <td>
+                          @if (monitor.lastRun) {
+                            <span
+                              class="status-pill"
+                              [class.status-pill--success]="monitor.lastRun.status === 'Success'"
+                              [class.status-pill--failure]="monitor.lastRun.status === 'Failure'"
+                            >
+                              <span class="status-dot" aria-hidden="true"></span>
+                              {{ monitor.lastRun.status === 'Success' ? 'Saudável' : 'Falha' }}
+                            </span>
+                          } @else {
+                            <span class="status-pill status-pill--unknown">Nunca executado</span>
+                          }
+                        </td>
+                        <td>
+                          {{
+                            monitor.lastRun
+                              ? (monitor.lastRun.startedAt | date: 'dd/MM/yyyy HH:mm:ss')
+                              : '—'
+                          }}
+                        </td>
+                        <td>{{ monitor.lastRun ? monitor.lastRun.latencyMs + ' ms' : '—' }}</td>
+                        <td>
+                          <strong [class.failure-count]="monitor.consecutiveFailures > 0">
+                            {{ monitor.consecutiveFailures }}
+                          </strong>
+                        </td>
+                        <td>
+                          <span
+                            class="schedule-state"
+                            [class.schedule-state--paused]="!monitor.enabled"
+                          >
+                            {{
+                              monitor.enabled
+                                ? 'A cada ' + monitor.intervalSeconds + 's'
+                                : 'Pausado'
+                            }}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </article>
+        }
+      </section>
+    }
+  </main>
+</div>

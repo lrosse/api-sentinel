@@ -34,10 +34,13 @@ export class EndpointDetail implements OnInit {
   protected readonly runningMonitorIds = signal<ReadonlySet<string>>(new Set());
   protected readonly error = signal<string | null>(null);
   protected readonly currentUser = this.auth.currentUser;
+  protected readonly intervalOptions = [60, 300, 900, 1800, 3600, 21600, 43200, 86400];
 
   protected timeoutMs = 5_000;
   protected expectedStatusCode = 200;
   protected maxLatencyMs: number | null = null;
+  protected intervalSeconds = 300;
+  protected enabled = true;
   protected ignoredPaths = '';
 
   ngOnInit(): void {
@@ -73,6 +76,8 @@ export class EndpointDetail implements OnInit {
     this.timeoutMs = monitor.timeoutMs;
     this.expectedStatusCode = monitor.expectedStatusCode;
     this.maxLatencyMs = monitor.maxLatencyMs;
+    this.intervalSeconds = monitor.intervalSeconds;
+    this.enabled = monitor.enabled;
     this.ignoredPaths = monitor.ignoredPaths.join(', ');
   }
 
@@ -81,6 +86,8 @@ export class EndpointDetail implements OnInit {
     this.timeoutMs = 5_000;
     this.expectedStatusCode = 200;
     this.maxLatencyMs = null;
+    this.intervalSeconds = 300;
+    this.enabled = true;
     this.ignoredPaths = '';
   }
 
@@ -191,6 +198,8 @@ export class EndpointDetail implements OnInit {
       timeoutMs: Number(this.timeoutMs),
       expectedStatusCode: Number(this.expectedStatusCode),
       maxLatencyMs: this.maxLatencyMs ? Number(this.maxLatencyMs) : null,
+      intervalSeconds: Number(this.intervalSeconds),
+      enabled: this.enabled,
       ignoredPaths: this.ignoredPaths
         .split(',')
         .map((path) => path.trim())

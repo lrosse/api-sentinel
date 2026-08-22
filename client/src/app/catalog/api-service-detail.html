@@ -1,6 +1,12 @@
 <div class="app-shell">
   <header class="topbar">
-    <a class="brand" routerLink="/catalog">API Sentinel</a>
+    <div class="topbar__navigation">
+      <a class="brand" routerLink="/dashboard">API Sentinel</a>
+      <nav class="topbar__nav" aria-label="Navegação principal">
+        <a class="topbar__link" routerLink="/dashboard">Dashboard</a>
+        <a class="topbar__link topbar__link--active" routerLink="/catalog">Catálogo</a>
+      </nav>
+    </div>
     <div class="topbar__account">
       <span>{{ currentUser()?.email }}</span>
       <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
@@ -23,7 +29,9 @@
           <h1>{{ service()?.name }}</h1>
           <code class="base-url">{{ service()?.baseUrl }}</code>
         </div>
-        <button class="button button--danger" type="button" (click)="deleteService()">Excluir API</button>
+        <button class="button button--danger" type="button" (click)="deleteService()">
+          Excluir API
+        </button>
       </section>
 
       <div class="detail-layout">
@@ -45,13 +53,22 @@
             </label>
             <label>
               Descrição <span class="optional">opcional</span>
-              <textarea name="description" [(ngModel)]="description" rows="3" maxlength="1000"></textarea>
+              <textarea
+                name="description"
+                [(ngModel)]="description"
+                rows="3"
+                maxlength="1000"
+              ></textarea>
             </label>
             <label>
               Tags <span class="optional">separadas por vírgula</span>
               <input name="tags" [(ngModel)]="tags" />
             </label>
-            <button class="button button--secondary button--full" type="submit" [disabled]="savingService()">
+            <button
+              class="button button--secondary button--full"
+              type="submit"
+              [disabled]="savingService()"
+            >
               {{ savingService() ? 'Salvando…' : 'Salvar alterações' }}
             </button>
           </form>
@@ -103,13 +120,17 @@
             <div class="endpoint-list">
               @for (endpoint of endpoints(); track endpoint.id) {
                 <article class="endpoint-row">
-                  <span class="method method--{{ endpoint.method.toLowerCase() }}">{{ endpoint.method }}</span>
+                  <span class="method method--{{ endpoint.method.toLowerCase() }}">{{
+                    endpoint.method
+                  }}</span>
                   <a class="endpoint-link" [routerLink]="['/endpoints', endpoint.id]">
                     <code>{{ endpoint.path }}</code>
                     <span>Monitores →</span>
                   </a>
                   <div class="endpoint-row__actions">
-                    <button class="icon-button" type="button" (click)="editEndpoint(endpoint)">Editar</button>
+                    <button class="icon-button" type="button" (click)="editEndpoint(endpoint)">
+                      Editar
+                    </button>
                     <button
                       class="icon-button icon-button--danger"
                       type="button"

@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ApiSentinel.Api.IntegrationTests;
 
-public sealed class ApiSentinelWebApplicationFactory : WebApplicationFactory<Program>
+public class ApiSentinelWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
 
@@ -37,7 +37,12 @@ public sealed class ApiSentinelWebApplicationFactory : WebApplicationFactory<Pro
             services.RemoveAll<IDnsAddressResolver>();
             services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
             services.AddSingleton<IDnsAddressResolver, TestDnsAddressResolver>();
+            ConfigureAdditionalServices(services);
         });
+    }
+
+    protected virtual void ConfigureAdditionalServices(IServiceCollection services)
+    {
     }
 
     public HttpClient CreateApiClient() => CreateClient(new WebApplicationFactoryClientOptions

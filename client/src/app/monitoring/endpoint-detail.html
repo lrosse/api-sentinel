@@ -1,6 +1,12 @@
 <div class="app-shell">
   <header class="topbar">
-    <a class="brand" routerLink="/catalog">API Sentinel</a>
+    <div class="topbar__navigation">
+      <a class="brand" routerLink="/dashboard">API Sentinel</a>
+      <nav class="topbar__nav" aria-label="Navegação principal">
+        <a class="topbar__link" routerLink="/dashboard">Dashboard</a>
+        <a class="topbar__link topbar__link--active" routerLink="/catalog">Catálogo</a>
+      </nav>
+    </div>
     <div class="topbar__account">
       <span>{{ currentUser()?.email }}</span>
       <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
@@ -21,7 +27,7 @@
     } @else if (endpoint()) {
       <section class="page-heading page-heading--detail">
         <div>
-          <p class="eyebrow">Marco 2 · Execução manual</p>
+          <p class="eyebrow">Marco 3 · Execução manual e agendada</p>
           <h1>{{ endpoint()?.method }} {{ endpoint()?.path }}</h1>
           <code class="base-url">{{ apiService()?.baseUrl }}{{ endpoint()?.path }}</code>
         </div>
@@ -75,6 +81,27 @@
               />
             </label>
             <label>
+              Intervalo automático
+              <select name="intervalSeconds" [(ngModel)]="intervalSeconds" required>
+                @for (interval of intervalOptions; track interval) {
+                  <option [ngValue]="interval">
+                    @if (interval < 3600) {
+                      {{ interval / 60 }} min
+                    } @else {
+                      {{ interval / 3600 }} h
+                    }
+                  </option>
+                }
+              </select>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="enabled" [(ngModel)]="enabled" />
+              <span>Agendamento ativo</span>
+            </label>
+            <p class="field-hint">
+              O Hangfire executa recurring jobs com granularidade mínima de 1 minuto.
+            </p>
+            <label>
               Paths ignorados <span class="optional">opcional, separados por vírgula</span>
               <input
                 name="ignoredPaths"
@@ -83,13 +110,18 @@
               />
             </label>
             <p class="field-hint">
-              Os paths serão usados pelo diff estrutural no Marco 4; ainda não alteram esta execução.
+              Os paths serão usados pelo diff estrutural no Marco 4; ainda não alteram esta
+              execução.
             </p>
             <button class="button button--primary button--full" type="submit" [disabled]="saving()">
               {{ saving() ? 'Salvando…' : editingMonitorId() ? 'Salvar monitor' : 'Criar monitor' }}
             </button>
             @if (editingMonitorId()) {
-              <button class="button button--ghost button--full" type="button" (click)="cancelEdit()">
+              <button
+                class="button button--ghost button--full"
+                type="button"
+                (click)="cancelEdit()"
+              >
                 Cancelar edição
               </button>
             }
@@ -114,11 +146,24 @@
               <article class="panel monitor-card">
                 <div class="monitor-card__header">
                   <div class="monitor-metrics">
-                    <span><strong>{{ monitor.timeoutMs }}</strong> ms timeout</span>
-                    <span>espera <strong>HTTP {{ monitor.expectedStatusCode }}</strong></span>
+                    <span
+                      ><strong>{{ monitor.timeoutMs }}</strong> ms timeout</span
+                    >
+                    <span
+                      >espera <strong>HTTP {{ monitor.expectedStatusCode }}</strong></span
+                    >
                     @if (monitor.maxLatencyMs) {
-                      <span>alerta futuro em <strong>{{ monitor.maxLatencyMs }} ms</strong></span>
+                      <span
+                        >alerta futuro em <strong>{{ monitor.maxLatencyMs }} ms</strong></span
+                      >
                     }
+                    <span>
+                      @if (monitor.enabled) {
+                        a cada <strong>{{ monitor.intervalSeconds }} s</strong>
+                      } @else {
+                        <strong>agendamento pausado</strong>
+                      }
+                    </span>
                   </div>
                   <div class="endpoint-row__actions">
                     <button class="icon-button" type="button" (click)="editMonitor(monitor)">

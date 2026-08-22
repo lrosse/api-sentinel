@@ -70,6 +70,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasKey(monitor => monitor.Id);
             entity.Property(monitor => monitor.TimeoutMs).IsRequired();
             entity.Property(monitor => monitor.ExpectedStatusCode).IsRequired();
+            entity.Property(monitor => monitor.IntervalSeconds).IsRequired();
+            entity.Property(monitor => monitor.Enabled).IsRequired();
             entity.Property(monitor => monitor.IgnoredPaths).IsRequired();
             entity.HasIndex(monitor => monitor.EndpointId);
             entity.HasOne(monitor => monitor.Endpoint)

@@ -32,7 +32,8 @@ public sealed class Marco2IntegrationTests :
         { $"/monitors/{Guid.NewGuid()}", HttpMethod.Put, ValidMonitorBody() },
         { $"/monitors/{Guid.NewGuid()}", HttpMethod.Delete, null },
         { $"/monitors/{Guid.NewGuid()}/run", HttpMethod.Post, null },
-        { $"/monitors/{Guid.NewGuid()}/runs", HttpMethod.Get, null }
+        { $"/monitors/{Guid.NewGuid()}/runs", HttpMethod.Get, null },
+        { "/dashboard/summary", HttpMethod.Get, null }
     };
 
     [Theory]

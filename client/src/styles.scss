@@ -289,6 +289,35 @@ select:focus {
   font-size: 0.82rem;
 }
 
+.topbar__navigation,
+.topbar__nav {
+  display: flex;
+  align-items: center;
+}
+
+.topbar__navigation {
+  gap: 2rem;
+}
+
+.topbar__nav {
+  gap: 0.35rem;
+}
+
+.topbar__link {
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.topbar__link:hover,
+.topbar__link--active {
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+}
+
 .page {
   width: min(1180px, 90vw);
   margin: 0 auto;
@@ -575,6 +604,18 @@ select:focus {
   color: #e2e8f0;
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.checkbox-label input {
+  width: 17px;
+  min-height: 17px;
+  accent-color: #6366f1;
+}
+
 .button--run {
   width: fit-content;
 }
@@ -677,6 +718,107 @@ select:focus {
   color: #fda4af;
 }
 
+.status-pill--unknown {
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+}
+
+.dashboard-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-api {
+  min-width: 0;
+}
+
+.dashboard-api__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.dashboard-api__heading h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-api__heading h2 a:hover {
+  color: #c7d2fe;
+}
+
+.dashboard-api__empty {
+  margin: 0;
+  padding: 1rem 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.dashboard-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+  text-align: left;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.dashboard-table th {
+  color: #64748b;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dashboard-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.dashboard-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #e2e8f0;
+  text-decoration: none;
+}
+
+.dashboard-endpoint:hover code {
+  color: #a5b4fc;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  margin-right: 0.2rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.failure-count {
+  color: #fb7185;
+}
+
+.schedule-state {
+  color: #a7f3d0;
+}
+
+.schedule-state--paused {
+  color: #94a3b8;
+}
+
 @media (max-width: 880px) {
   .catalog-layout,
   .detail-layout,
@@ -700,6 +842,18 @@ select:focus {
 
   .topbar__account span {
     display: none;
+  }
+
+  .topbar__navigation {
+    gap: 0.7rem;
+  }
+
+  .topbar__nav {
+    gap: 0;
+  }
+
+  .topbar__link {
+    padding-inline: 0.5rem;
   }
 
   .page {

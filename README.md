@@ -2,8 +2,9 @@
 
 Plataforma para monitoramento de APIs e detecção de mudanças de contrato.
 
-> O projeto está no **Marco 2**. A infraestrutura reproduzível, autenticação por cookie,
-> catálogo privado, monitores manuais protegidos contra SSRF e histórico estão implementados.
+> O projeto está no **Marco 3**. A infraestrutura reproduzível, autenticação por cookie,
+> catálogo privado, execução manual protegida contra SSRF, agendamento via Hangfire, histórico
+> e dashboard operacional estão implementados.
 
 ## Pré-requisitos
 
@@ -41,7 +42,7 @@ O Mock API 2 inclui o campo adicional `categoria`. Ambos os mocks aceitam
 Na primeira inicialização, a API cria o banco `ApiSentinel` e aplica automaticamente todas
 as migrations pendentes antes de começar a aceitar requisições.
 
-## Autenticação, catálogo e monitoramento manual
+## Autenticação, catálogo e monitoramento
 
 Abra o cliente Angular, crie uma conta e use a tela de catálogo para cadastrar APIs e seus
 endpoints. Cada registro fica obrigatoriamente vinculado ao usuário autenticado; tentativas de
@@ -55,7 +56,13 @@ efêmero do container da API.
 
 Na tela da API, abra um endpoint pelo link **Monitores**. A tela de detalhe permite criar mais
 de um monitor para a mesma rota, configurar timeout e status esperado, usar **Testar agora** e
-consultar as últimas 50 execuções. Ainda não há agendamento: todas as execuções são manuais.
+consultar as últimas 50 execuções. Cada monitor também possui um intervalo e pode ter o
+agendamento pausado e retomado sem apagar o histórico. Recurring jobs nativos do Hangfire têm
+granularidade de minuto, então o backend rejeita intervalos menores que 60 segundos.
+
+A home autenticada é o dashboard (`/dashboard`). Ela carrega um único resumo agregado por API,
+com o último status, horário, latência e a sequência atual de falhas de cada monitor. A sequência
+é apenas visual neste marco; ainda não cria incidentes.
 
 O executor aceita somente HTTP/HTTPS, aplica timeout, até três redirecionamentos e no máximo
 1 MB de resposta. Antes da chamada e dentro de `SocketsHttpHandler.ConnectCallback`, o host é
@@ -68,13 +75,14 @@ Endpoints disponíveis:
 - autenticação: `/auth/register`, `/auth/login`, `/auth/logout` e `/auth/me`;
 - catálogo: `/api-services`, `/api-services/{id}/endpoints` e `/endpoints/{id}`;
 - monitores: `/endpoints/{id}/monitors`, `/monitors/{id}`, `/monitors/{id}/run` e
-  `/monitors/{id}/runs`.
+  `/monitors/{id}/runs`;
+- dashboard: `/dashboard/summary`.
 
 Todos os endpoints do catálogo exigem um cookie de autenticação válido.
 
 ## Testes
 
-Para executar a suíte de integração dos Marcos 1 e 2:
+Para executar a suíte de integração dos Marcos 1, 2 e 3:
 
 ```powershell
 dotnet test src/ApiSentinel.sln
@@ -82,7 +90,9 @@ dotnet test src/ApiSentinel.sln
 
 Os testes sobem a aplicação em memória e fazem chamadas HTTP reais. Além do Marco 1, validam
 CRUD e autorização dos monitores, bloqueio SSRF de IP privado e metadata de nuvem, allowlist
-dos dois mocks, timeout, limite de resposta, sanitização do trecho do corpo e concorrência.
+dos dois mocks, timeout, limite de resposta, sanitização do trecho do corpo, agendamento
+automático, pausa/retomada, remoção de recurring jobs, concorrência manual × agendada e
+isolamento do dashboard por usuário.
 
 ## Validação rápida
 
@@ -96,6 +106,8 @@ curl.exe -i "http://localhost:5001/produtos?falhar=true"
 Measure-Command { Invoke-RestMethod "http://localhost:5002/produtos?atrasar=true" }
 docker compose ps
 dotnet test src/ApiSentinel.sln
+Start-Process http://127.0.0.1:4200/dashboard
+Start-Process http://127.0.0.1:8080/hangfire/recurring
 ```
 
 Para encerrar os serviços:

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ApiSentinel.Modules.Monitoring.Domain;
 using ApiSentinel.Modules.Monitoring.HttpExecution;
+using ApiSentinel.Modules.Monitoring.Scheduling;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -18,6 +19,8 @@ public static class MonitoringModule
     private const int MaximumTimeoutMs = 120_000;
     private const int MaximumIgnoredPaths = 100;
     private const int MaximumIgnoredPathLength = 512;
+    private const int MinimumIntervalSeconds = 60;
+    private const int MaximumIntervalSeconds = 86_400;
 
     public static IServiceCollection AddMonitoringModule(
         this IServiceCollection services,
@@ -43,6 +46,9 @@ public static class MonitoringModule
         services.AddSingleton<ISsrfTargetValidator, SsrfTargetValidator>();
         services.AddSingleton<IMonitorExecutionGate, MonitorExecutionGate>();
         services.AddScoped<IHttpMonitorExecutor, HttpMonitorExecutor>();
+        services.AddScoped<IMonitorRunner, MonitorRunner>();
+        services.AddScoped<IScheduledMonitorJob, ScheduledMonitorJob>();
+        services.TryAddSingleton<IMonitorScheduleManager, DisabledMonitorScheduleManager>();
         return services;
     }
 
@@ -64,6 +70,10 @@ public static class MonitoringModule
         monitors.MapPost("/{id:guid}/run", RunMonitorAsync);
         monitors.MapGet("/{id:guid}/runs", ListCheckRunsAsync);
 
+        endpoints.MapGet("/dashboard/summary", GetDashboardSummaryAsync)
+            .WithTags("Dashboard")
+            .RequireAuthorization();
+
         return endpoints;
     }
 
@@ -72,6 +82,7 @@ public static class MonitoringModule
         MonitorRequest request,
         ClaimsPrincipal principal,
         IMonitoringDbContext dbContext,
+        IMonitorScheduleManager scheduleManager,
         CancellationToken cancellationToken)
     {
         var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -105,11 +116,20 @@ public static class MonitoringModule
             TimeoutMs = request.TimeoutMs,
             ExpectedStatusCode = request.ExpectedStatusCode,
             MaxLatencyMs = request.MaxLatencyMs,
+            IntervalSeconds = request.IntervalSeconds,
+            Enabled = request.Enabled,
             IgnoredPaths = NormalizeIgnoredPaths(request.IgnoredPaths)
         };
 
         dbContext.Monitors.Add(monitor);
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (monitor.Enabled)
+        {
+            await scheduleManager.UpsertAsync(
+                new MonitorSchedule(monitor.Id, monitor.IntervalSeconds),
+                cancellationToken);
+        }
+
         return Results.Created($"/monitors/{monitor.Id}", ToResponse(monitor));
     }
 
@@ -150,6 +170,7 @@ public static class MonitoringModule
         MonitorRequest request,
         ClaimsPrincipal principal,
         IMonitoringDbContext dbContext,
+        IMonitorScheduleManager scheduleManager,
         CancellationToken cancellationToken)
     {
         var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -176,8 +197,21 @@ public static class MonitoringModule
         monitor.TimeoutMs = request.TimeoutMs;
         monitor.ExpectedStatusCode = request.ExpectedStatusCode;
         monitor.MaxLatencyMs = request.MaxLatencyMs;
+        monitor.IntervalSeconds = request.IntervalSeconds;
+        monitor.Enabled = request.Enabled;
         monitor.IgnoredPaths = NormalizeIgnoredPaths(request.IgnoredPaths);
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (monitor.Enabled)
+        {
+            await scheduleManager.UpsertAsync(
+                new MonitorSchedule(monitor.Id, monitor.IntervalSeconds),
+                cancellationToken);
+        }
+        else
+        {
+            await scheduleManager.RemoveAsync(monitor.Id, cancellationToken);
+        }
+
         return Results.Ok(ToResponse(monitor));
     }
 
@@ -185,6 +219,7 @@ public static class MonitoringModule
         Guid id,
         ClaimsPrincipal principal,
         IMonitoringDbContext dbContext,
+        IMonitorScheduleManager scheduleManager,
         CancellationToken cancellationToken)
     {
         var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -204,15 +239,14 @@ public static class MonitoringModule
 
         dbContext.Monitors.Remove(monitor);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await scheduleManager.RemoveAsync(monitor.Id, cancellationToken);
         return Results.NoContent();
     }
 
     private static async Task<IResult> RunMonitorAsync(
         Guid id,
         ClaimsPrincipal principal,
-        IMonitoringDbContext dbContext,
-        IHttpMonitorExecutor executor,
-        IMonitorExecutionGate executionGate,
+        IMonitorRunner runner,
         CancellationToken cancellationToken)
     {
         var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -221,29 +255,24 @@ public static class MonitoringModule
             return Results.Unauthorized();
         }
 
-        var monitor = await dbContext.Monitors
-            .Include(candidate => candidate.Endpoint)
-            .ThenInclude(endpoint => endpoint.ApiService)
-            .FirstOrDefaultAsync(
-                candidate => candidate.Id == id &&
-                             candidate.Endpoint.ApiService.OwnerUserId == ownerUserId,
-                cancellationToken);
-        if (monitor is null)
+        var result = await runner.ExecuteAsync(
+            id,
+            ownerUserId,
+            requireEnabled: false,
+            cancellationToken);
+        if (result.State is MonitorRunState.NotFound)
         {
             return Results.NotFound();
         }
 
-        using var lease = executionGate.TryEnter(id);
-        if (lease is null)
+        if (result.State is MonitorRunState.AlreadyRunning)
         {
             return Results.Problem(
                 title: "Este monitor já possui uma execução em andamento.",
                 statusCode: StatusCodes.Status409Conflict);
         }
 
-        var checkRun = await executor.ExecuteAsync(monitor, cancellationToken);
-        dbContext.CheckRuns.Add(checkRun);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var checkRun = result.CheckRun!;
         return Results.Created($"/monitors/{id}/runs/{checkRun.Id}", ToResponse(checkRun));
     }
 
@@ -280,6 +309,126 @@ public static class MonitoringModule
         return Results.Ok(runs);
     }
 
+    private static async Task<IResult> GetDashboardSummaryAsync(
+        ClaimsPrincipal principal,
+        IMonitoringDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (ownerUserId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var apiServices = await dbContext.ApiServices
+            .AsNoTracking()
+            .Where(apiService => apiService.OwnerUserId == ownerUserId)
+            .OrderBy(apiService => apiService.Name)
+            .ThenBy(apiService => apiService.Id)
+            .Select(apiService => new DashboardApiServiceRow(
+                apiService.Id,
+                apiService.Name))
+            .ToListAsync(cancellationToken);
+
+        var monitors = await dbContext.Monitors
+            .AsNoTracking()
+            .Where(monitor => monitor.Endpoint.ApiService.OwnerUserId == ownerUserId)
+            .OrderBy(monitor => monitor.Endpoint.ApiService.Name)
+            .ThenBy(monitor => monitor.Endpoint.Path)
+            .ThenBy(monitor => monitor.Id)
+            .Select(monitor => new DashboardMonitorRow(
+                monitor.Id,
+                monitor.EndpointId,
+                monitor.Endpoint.ApiServiceId,
+                monitor.Endpoint.Method.ToString(),
+                monitor.Endpoint.Path,
+                monitor.Enabled,
+                monitor.IntervalSeconds))
+            .ToListAsync(cancellationToken);
+
+        var monitorIds = monitors.Select(monitor => monitor.Id).ToArray();
+        var latestRunsByMonitor = new Dictionary<Guid, DashboardCheckRunResponse>();
+        var consecutiveFailuresByMonitor = new Dictionary<Guid, int>();
+
+        if (monitorIds.Length > 0)
+        {
+            var latestRunTimes = dbContext.CheckRuns
+                .AsNoTracking()
+                .Where(run => monitorIds.Contains(run.MonitorId))
+                .GroupBy(run => run.MonitorId)
+                .Select(group => new
+                {
+                    MonitorId = group.Key,
+                    StartedAt = group.Max(run => run.StartedAt)
+                });
+
+            var latestRuns = await dbContext.CheckRuns
+                .AsNoTracking()
+                .Where(run => monitorIds.Contains(run.MonitorId))
+                .Join(
+                    latestRunTimes,
+                    run => new { run.MonitorId, run.StartedAt },
+                    latest => new { latest.MonitorId, latest.StartedAt },
+                    (run, _) => run)
+                .OrderByDescending(run => run.Id)
+                .Select(run => new DashboardLatestRunRow(
+                    run.MonitorId,
+                    run.Status,
+                    AsUtc(run.StartedAt),
+                    run.LatencyMs,
+                    run.HttpStatusCode))
+                .ToListAsync(cancellationToken);
+
+            foreach (var latestRun in latestRuns)
+            {
+                latestRunsByMonitor.TryAdd(
+                    latestRun.MonitorId,
+                    new DashboardCheckRunResponse(
+                        latestRun.Status,
+                        latestRun.StartedAt,
+                        latestRun.LatencyMs,
+                        latestRun.HttpStatusCode));
+            }
+
+            consecutiveFailuresByMonitor = await dbContext.CheckRuns
+                .AsNoTracking()
+                .Where(run => monitorIds.Contains(run.MonitorId) &&
+                              run.Status == CheckRunStatus.Failure &&
+                              !dbContext.CheckRuns.Any(success =>
+                                  success.MonitorId == run.MonitorId &&
+                                  success.Status == CheckRunStatus.Success &&
+                                  success.StartedAt > run.StartedAt))
+                .GroupBy(run => run.MonitorId)
+                .Select(group => new { MonitorId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(item => item.MonitorId, item => item.Count, cancellationToken);
+        }
+
+        var monitorsByApiService = monitors
+            .GroupBy(monitor => monitor.ApiServiceId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<DashboardMonitorResponse>)group
+                    .Select(monitor => new DashboardMonitorResponse(
+                        monitor.Id,
+                        monitor.EndpointId,
+                        monitor.EndpointMethod,
+                        monitor.EndpointPath,
+                        monitor.Enabled,
+                        monitor.IntervalSeconds,
+                        latestRunsByMonitor.GetValueOrDefault(monitor.Id),
+                        consecutiveFailuresByMonitor.GetValueOrDefault(monitor.Id)))
+                    .ToList());
+
+        var response = apiServices
+            .Select(apiService => new DashboardApiServiceResponse(
+                apiService.Id,
+                apiService.Name,
+                monitorsByApiService.GetValueOrDefault(apiService.Id) ?? []))
+            .ToList();
+
+        return Results.Ok(response);
+    }
+
     private static Dictionary<string, string[]> ValidateMonitor(MonitorRequest request)
     {
         var errors = new Dictionary<string, string[]>();
@@ -298,6 +447,15 @@ public static class MonitoringModule
         {
             errors["maxLatencyMs"] =
                 [$"A latência máxima deve ficar entre 1 e {MaximumTimeoutMs} ms."];
+        }
+
+        if (!IsSupportedInterval(request.IntervalSeconds))
+        {
+            errors["intervalSeconds"] =
+            [
+                $"O intervalo deve ficar entre {MinimumIntervalSeconds} e {MaximumIntervalSeconds} segundos " +
+                "e dividir exatamente uma hora ou um dia."
+            ];
         }
 
         var ignoredPaths = NormalizeIgnoredPaths(request.IgnoredPaths);
@@ -322,6 +480,20 @@ public static class MonitoringModule
             .Distinct(StringComparer.Ordinal)
             .ToList() ?? [];
 
+    private static bool IsSupportedInterval(int intervalSeconds)
+    {
+        if (intervalSeconds is < MinimumIntervalSeconds or > MaximumIntervalSeconds ||
+            intervalSeconds % 60 != 0)
+        {
+            return false;
+        }
+
+        var intervalMinutes = intervalSeconds / 60;
+        return intervalMinutes <= 60
+            ? 60 % intervalMinutes == 0
+            : intervalMinutes % 60 == 0 && 24 % (intervalMinutes / 60) == 0;
+    }
+
     private static MonitorResponse ToResponse(MonitorEntity monitor) =>
         new(
             monitor.Id,
@@ -329,6 +501,8 @@ public static class MonitoringModule
             monitor.TimeoutMs,
             monitor.ExpectedStatusCode,
             monitor.MaxLatencyMs,
+            monitor.IntervalSeconds,
+            monitor.Enabled,
             monitor.IgnoredPaths);
 
     private static CheckRunResponse ToResponse(CheckRun run) =>
@@ -350,7 +524,9 @@ public static class MonitoringModule
         int TimeoutMs,
         int ExpectedStatusCode,
         int? MaxLatencyMs,
-        IReadOnlyCollection<string>? IgnoredPaths);
+        IReadOnlyCollection<string>? IgnoredPaths,
+        int IntervalSeconds = 300,
+        bool Enabled = true);
 
     public sealed record MonitorResponse(
         Guid Id,
@@ -358,6 +534,8 @@ public static class MonitoringModule
         int TimeoutMs,
         int ExpectedStatusCode,
         int? MaxLatencyMs,
+        int IntervalSeconds,
+        bool Enabled,
         IReadOnlyCollection<string> IgnoredPaths);
 
     public sealed record CheckRunResponse(
@@ -370,4 +548,43 @@ public static class MonitoringModule
         long LatencyMs,
         string? ErrorMessage,
         string? ResponseBodySnippet);
+
+    private sealed record DashboardApiServiceRow(Guid Id, string Name);
+
+    private sealed record DashboardMonitorRow(
+        Guid Id,
+        Guid EndpointId,
+        Guid ApiServiceId,
+        string EndpointMethod,
+        string EndpointPath,
+        bool Enabled,
+        int IntervalSeconds);
+
+    private sealed record DashboardLatestRunRow(
+        Guid MonitorId,
+        CheckRunStatus Status,
+        DateTime StartedAt,
+        long LatencyMs,
+        int? HttpStatusCode);
+
+    public sealed record DashboardApiServiceResponse(
+        Guid Id,
+        string Name,
+        IReadOnlyCollection<DashboardMonitorResponse> Monitors);
+
+    public sealed record DashboardMonitorResponse(
+        Guid Id,
+        Guid EndpointId,
+        string EndpointMethod,
+        string EndpointPath,
+        bool Enabled,
+        int IntervalSeconds,
+        DashboardCheckRunResponse? LastRun,
+        int ConsecutiveFailures);
+
+    public sealed record DashboardCheckRunResponse(
+        CheckRunStatus Status,
+        DateTime StartedAt,
+        long LatencyMs,
+        int? HttpStatusCode);
 }

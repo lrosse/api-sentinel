@@ -3,6 +3,7 @@ using ApiSentinel.Infrastructure.Persistence;
 using ApiSentinel.Modules.ApiCatalog;
 using ApiSentinel.Modules.Identity;
 using ApiSentinel.Modules.Monitoring;
+using ApiSentinel.Modules.Monitoring.Scheduling;
 using Hangfire;
 using Hangfire.Dashboard;
 using System.Text.Json.Serialization;
@@ -18,6 +19,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 await app.ApplyDatabaseMigrationsAsync();
+await app.ReconcileMonitorSchedulesAsync();
 
 if (!builder.Environment.IsEnvironment("Testing") &&
     builder.Configuration.GetValue("Hangfire:Enabled", true))
