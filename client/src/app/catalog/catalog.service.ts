@@ -31,6 +31,10 @@ export class CatalogService {
     return this.http.get<ApiEndpoint[]>(`/api-services/${apiServiceId}/endpoints`);
   }
 
+  getEndpoint(id: string): Observable<ApiEndpoint> {
+    return this.http.get<ApiEndpoint>(`/endpoints/${id}`);
+  }
+
   createEndpoint(apiServiceId: string, input: EndpointInput): Observable<ApiEndpoint> {
     return this.http.post<ApiEndpoint>(`/api-services/${apiServiceId}/endpoints`, input);
   }

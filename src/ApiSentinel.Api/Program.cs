@@ -2,6 +2,7 @@ using ApiSentinel.Infrastructure;
 using ApiSentinel.Infrastructure.Persistence;
 using ApiSentinel.Modules.ApiCatalog;
 using ApiSentinel.Modules.Identity;
+using ApiSentinel.Modules.Monitoring;
 using Hangfire;
 using Hangfire.Dashboard;
 using System.Text.Json.Serialization;
@@ -9,6 +10,7 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.AddMonitoringModule(builder.Configuration);
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(
         new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false)));
@@ -32,6 +34,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapIdentityModule();
 app.MapApiCatalogModule();
+app.MapMonitoringModule();
 
 app.Run();
 

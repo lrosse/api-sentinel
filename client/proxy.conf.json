@@ -22,5 +22,11 @@
     "secure": false,
     "changeOrigin": true,
     "logLevel": "info"
+  },
+  "/monitors": {
+    "target": "http://api:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
   }
 }

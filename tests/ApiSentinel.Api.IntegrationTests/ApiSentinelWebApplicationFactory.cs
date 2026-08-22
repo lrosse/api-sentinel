@@ -1,4 +1,6 @@
 using ApiSentinel.Infrastructure.Persistence;
+using ApiSentinel.Modules.Monitoring.HttpExecution;
+using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -23,14 +25,18 @@ public sealed class ApiSentinelWebApplicationFactory : WebApplicationFactory<Pro
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = "Data Source=:memory:",
-                ["Hangfire:Enabled"] = "false"
+                ["Hangfire:Enabled"] = "false",
+                ["Monitoring:NetworkSecurity:DevelopmentInternalHosts:0"] = "mock-api-1",
+                ["Monitoring:NetworkSecurity:DevelopmentInternalHosts:1"] = "mock-api-2"
             });
         });
 
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.RemoveAll<IDnsAddressResolver>();
             services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
+            services.AddSingleton<IDnsAddressResolver, TestDnsAddressResolver>();
         });
     }
 
@@ -48,5 +54,24 @@ public sealed class ApiSentinelWebApplicationFactory : WebApplicationFactory<Pro
         {
             _connection.Dispose();
         }
+    }
+}
+
+internal sealed class TestDnsAddressResolver : IDnsAddressResolver
+{
+    public Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken)
+    {
+        if (host.Equals("mock-api-1", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("mock-api-2", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(new[] { IPAddress.Loopback });
+        }
+
+        if (IPAddress.TryParse(host, out var address))
+        {
+            return Task.FromResult(new[] { address });
+        }
+
+        return Dns.GetHostAddressesAsync(host, cancellationToken);
     }
 }

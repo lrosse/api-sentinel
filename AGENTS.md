@@ -60,8 +60,8 @@ revisada explicitamente com o usuário.
 
 0. Infraestrutura reproduzível (Docker Compose, bootstrap automático do banco) — **concluído
    e commitado**.
-1. Autenticação por cookie + catálogo mínimo (`ApiService`, `Endpoint`) — **em andamento**.
-2. Executor HTTP manual protegido contra SSRF + histórico.
+1. Autenticação por cookie + catálogo mínimo (`ApiService`, `Endpoint`) — **concluído**.
+2. Executor HTTP manual protegido contra SSRF + histórico — **concluído**.
 3. Agendamento (Hangfire) + dashboard mínimo.
 4. Diff estrutural recursivo + detecção de mudança de contrato.
 5. Incidentes (Open/Recovered/Resolved) + testes E2E + demo reproduzível.

@@ -104,7 +104,10 @@
               @for (endpoint of endpoints(); track endpoint.id) {
                 <article class="endpoint-row">
                   <span class="method method--{{ endpoint.method.toLowerCase() }}">{{ endpoint.method }}</span>
-                  <code>{{ endpoint.path }}</code>
+                  <a class="endpoint-link" [routerLink]="['/endpoints', endpoint.id]">
+                    <code>{{ endpoint.path }}</code>
+                    <span>Monitores →</span>
+                  </a>
                   <div class="endpoint-row__actions">
                     <button class="icon-button" type="button" (click)="editEndpoint(endpoint)">Editar</button>
                     <button

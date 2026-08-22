@@ -38,6 +38,7 @@ public static class ApiCatalogModule
 
         apiEndpoints.MapPut("/{id:guid}", UpdateEndpointAsync);
         apiEndpoints.MapDelete("/{id:guid}", DeleteEndpointAsync);
+        apiEndpoints.MapGet("/{id:guid}", GetEndpointAsync);
 
         return endpoints;
     }
@@ -293,6 +294,30 @@ public static class ApiCatalogModule
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Results.Ok(ToResponse(endpoint));
+    }
+
+    private static async Task<IResult> GetEndpointAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        IApiCatalogDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (ownerUserId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var endpoint = await dbContext.Endpoints
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                candidate => candidate.Id == id &&
+                             candidate.ApiService.OwnerUserId == ownerUserId,
+                cancellationToken);
+
+        return endpoint is null
+            ? Results.NotFound()
+            : Results.Ok(ToResponse(endpoint));
     }
 
     private static async Task<IResult> DeleteEndpointAsync(

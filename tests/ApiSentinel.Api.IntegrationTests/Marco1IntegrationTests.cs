@@ -20,6 +20,7 @@ public sealed class Marco1IntegrationTests(
         { HttpMethod.Delete, $"/api-services/{Guid.NewGuid()}", null },
         { HttpMethod.Post, $"/api-services/{Guid.NewGuid()}/endpoints", ValidEndpointBody() },
         { HttpMethod.Get, $"/api-services/{Guid.NewGuid()}/endpoints", null },
+        { HttpMethod.Get, $"/endpoints/{Guid.NewGuid()}", null },
         { HttpMethod.Put, $"/endpoints/{Guid.NewGuid()}", ValidEndpointBody() },
         { HttpMethod.Delete, $"/endpoints/{Guid.NewGuid()}", null }
     };

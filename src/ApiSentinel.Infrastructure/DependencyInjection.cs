@@ -1,6 +1,7 @@
 using ApiSentinel.Infrastructure.Persistence;
 using ApiSentinel.Modules.ApiCatalog;
 using ApiSentinel.Modules.Identity;
+using ApiSentinel.Modules.Monitoring;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.DataProtection;
@@ -29,6 +30,8 @@ public static class DependencyInjection
             .AddEntityFrameworkStores<AppDbContext>();
 
         services.AddScoped<IApiCatalogDbContext>(provider =>
+            provider.GetRequiredService<AppDbContext>());
+        services.AddScoped<IMonitoringDbContext>(provider =>
             provider.GetRequiredService<AppDbContext>());
 
         var dataProtection = services

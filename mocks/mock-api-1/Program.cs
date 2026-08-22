@@ -8,7 +8,7 @@ var produtos = new[]
     new Produto(3, "Monitor 27 polegadas", 1899.00m)
 };
 
-app.MapGet("/produtos", async (bool? falhar, bool? atrasar) =>
+app.MapGet("/produtos", async (bool? falhar, bool? atrasar, bool? grande) =>
 {
     if (falhar is true)
     {
@@ -18,6 +18,11 @@ app.MapGet("/produtos", async (bool? falhar, bool? atrasar) =>
     if (atrasar is true)
     {
         await Task.Delay(TimeSpan.FromSeconds(3));
+    }
+
+    if (grande is true)
+    {
+        return Results.Text(new string('x', 1_100_000), "text/plain");
     }
 
     return Results.Ok(produtos);

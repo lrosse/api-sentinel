@@ -1,0 +1,208 @@
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/catalog">API Sentinel</a>
+    <div class="topbar__account">
+      <span>{{ currentUser()?.email }}</span>
+      <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <a class="back-link" [routerLink]="['/api-services', endpoint()?.apiServiceId]">
+      ← Voltar aos endpoints
+    </a>
+
+    @if (error()) {
+      <p class="alert" role="alert">{{ error() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="empty-state">Carregando endpoint…</p>
+    } @else if (endpoint()) {
+      <section class="page-heading page-heading--detail">
+        <div>
+          <p class="eyebrow">Marco 2 · Execução manual</p>
+          <h1>{{ endpoint()?.method }} {{ endpoint()?.path }}</h1>
+          <code class="base-url">{{ apiService()?.baseUrl }}{{ endpoint()?.path }}</code>
+        </div>
+        <span class="count-badge">
+          {{ monitors().length }} {{ monitors().length === 1 ? 'monitor' : 'monitores' }}
+        </span>
+      </section>
+
+      <div class="monitoring-layout">
+        <section class="panel" aria-labelledby="new-monitor-title">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__kicker">Configuração</p>
+              <h2 id="new-monitor-title">
+                {{ editingMonitorId() ? 'Editar monitor' : 'Novo monitor' }}
+              </h2>
+            </div>
+          </div>
+
+          <form (ngSubmit)="saveMonitor()">
+            <label>
+              Timeout (ms)
+              <input
+                type="number"
+                name="timeoutMs"
+                [(ngModel)]="timeoutMs"
+                min="100"
+                max="120000"
+                required
+              />
+            </label>
+            <label>
+              Status HTTP esperado
+              <input
+                type="number"
+                name="expectedStatusCode"
+                [(ngModel)]="expectedStatusCode"
+                min="100"
+                max="599"
+                required
+              />
+            </label>
+            <label>
+              Latência máxima (ms) <span class="optional">opcional, para alertas futuros</span>
+              <input
+                type="number"
+                name="maxLatencyMs"
+                [(ngModel)]="maxLatencyMs"
+                min="1"
+                max="120000"
+              />
+            </label>
+            <label>
+              Paths ignorados <span class="optional">opcional, separados por vírgula</span>
+              <input
+                name="ignoredPaths"
+                [(ngModel)]="ignoredPaths"
+                placeholder="cliente.id, metadata.timestamp"
+              />
+            </label>
+            <p class="field-hint">
+              Os paths serão usados pelo diff estrutural no Marco 4; ainda não alteram esta execução.
+            </p>
+            <button class="button button--primary button--full" type="submit" [disabled]="saving()">
+              {{ saving() ? 'Salvando…' : editingMonitorId() ? 'Salvar monitor' : 'Criar monitor' }}
+            </button>
+            @if (editingMonitorId()) {
+              <button class="button button--ghost button--full" type="button" (click)="cancelEdit()">
+                Cancelar edição
+              </button>
+            }
+          </form>
+        </section>
+
+        <section class="monitor-list" aria-labelledby="monitor-list-title">
+          <div class="panel__heading monitor-list__heading">
+            <div>
+              <p class="panel__kicker">Execução protegida</p>
+              <h2 id="monitor-list-title">Monitores e histórico</h2>
+            </div>
+          </div>
+
+          @if (monitors().length === 0) {
+            <div class="panel empty-state">
+              <strong>Nenhum monitor configurado.</strong>
+              <span>Crie um monitor para habilitar o botão “Testar agora”.</span>
+            </div>
+          } @else {
+            @for (monitor of monitors(); track monitor.id) {
+              <article class="panel monitor-card">
+                <div class="monitor-card__header">
+                  <div class="monitor-metrics">
+                    <span><strong>{{ monitor.timeoutMs }}</strong> ms timeout</span>
+                    <span>espera <strong>HTTP {{ monitor.expectedStatusCode }}</strong></span>
+                    @if (monitor.maxLatencyMs) {
+                      <span>alerta futuro em <strong>{{ monitor.maxLatencyMs }} ms</strong></span>
+                    }
+                  </div>
+                  <div class="endpoint-row__actions">
+                    <button class="icon-button" type="button" (click)="editMonitor(monitor)">
+                      Editar
+                    </button>
+                    <button
+                      class="icon-button icon-button--danger"
+                      type="button"
+                      (click)="deleteMonitor(monitor)"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  class="button button--primary button--run"
+                  type="button"
+                  [disabled]="runningMonitorIds().has(monitor.id)"
+                  (click)="runNow(monitor)"
+                >
+                  {{ runningMonitorIds().has(monitor.id) ? 'Executando…' : 'Testar agora' }}
+                </button>
+
+                @if (latestResultFor(monitor.id); as result) {
+                  <div
+                    class="run-result"
+                    [class.run-result--success]="result.status === 'Success'"
+                    [class.run-result--failure]="result.status === 'Failure'"
+                    role="status"
+                  >
+                    <strong>{{ result.status === 'Success' ? 'Sucesso' : 'Falha' }}</strong>
+                    <span>HTTP {{ result.httpStatusCode ?? 'sem resposta' }}</span>
+                    <span>{{ result.latencyMs }} ms</span>
+                    @if (result.errorMessage) {
+                      <span class="run-result__error">{{ result.errorMessage }}</span>
+                    }
+                  </div>
+                }
+
+                <div class="run-history">
+                  <h3>Últimas execuções</h3>
+                  @if (runsFor(monitor.id).length === 0) {
+                    <p class="muted">Este monitor ainda não foi executado.</p>
+                  } @else {
+                    <div class="run-table-wrap">
+                      <table class="run-table">
+                        <thead>
+                          <tr>
+                            <th>Resultado</th>
+                            <th>HTTP</th>
+                            <th>Latência</th>
+                            <th>Início</th>
+                            <th>Detalhe</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (run of runsFor(monitor.id); track run.id) {
+                            <tr>
+                              <td>
+                                <span
+                                  class="status-pill"
+                                  [class.status-pill--success]="run.status === 'Success'"
+                                  [class.status-pill--failure]="run.status === 'Failure'"
+                                >
+                                  {{ run.status === 'Success' ? 'Sucesso' : 'Falha' }}
+                                </span>
+                              </td>
+                              <td>{{ run.httpStatusCode ?? '—' }}</td>
+                              <td>{{ run.latencyMs }} ms</td>
+                              <td>{{ run.startedAt | date: 'dd/MM/yyyy HH:mm:ss' }}</td>
+                              <td class="run-table__detail">{{ run.errorMessage ?? '—' }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              </article>
+            }
+          }
+        </section>
+      </div>
+    }
+  </main>
+</div>
