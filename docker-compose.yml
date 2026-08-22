@@ -31,6 +31,7 @@ services:
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ApiSentinel;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
       DataProtection__KeysPath: /var/lib/api-sentinel/data-protection-keys
+      SeedData__Enabled: "${SEED_DEV_DATA:-false}"
     ports:
       - "8080:8080"
     volumes:
@@ -55,6 +56,7 @@ services:
       - "4200:4200"
     volumes:
       - ./client:/app
+      - ./src:/src:ro
       - client_node_modules:/app/node_modules
     depends_on:
       api:

@@ -28,5 +28,11 @@
     "secure": false,
     "changeOrigin": true,
     "logLevel": "info"
+  },
+  "/dashboard": {
+    "target": "http://api:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
   }
 }

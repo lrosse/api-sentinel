@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "check:proxy": "node scripts/check-api-proxy.mjs",
+    "prestart": "npm run check:proxy",
     "start": "ng serve --proxy-config proxy.conf.json",
+    "prebuild": "npm run check:proxy",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"

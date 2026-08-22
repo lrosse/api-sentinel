@@ -19,6 +19,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 await app.ApplyDatabaseMigrationsAsync();
+await app.SeedDevelopmentDataAsync();
 await app.ReconcileMonitorSchedulesAsync();
 
 if (!builder.Environment.IsEnvironment("Testing") &&

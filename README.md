@@ -27,13 +27,13 @@ Antes de usar o ambiente fora de uma máquina local, troque a senha de desenvolv
 
 Depois que os serviços estiverem saudáveis, acesse:
 
-| Componente | Endereço |
-| --- | --- |
-| Cliente Angular | http://localhost:4200 |
-| Health check da API | http://localhost:8080/health |
-| Dashboard Hangfire | http://localhost:8080/hangfire |
-| Mock API 1 | http://localhost:5001/produtos |
-| Mock API 2 | http://localhost:5002/produtos |
+| Componente          | Endereço                       |
+| ------------------- | ------------------------------ |
+| Cliente Angular     | http://localhost:4200          |
+| Health check da API | http://localhost:8080/health   |
+| Dashboard Hangfire  | http://localhost:8080/hangfire |
+| Mock API 1          | http://localhost:5001/produtos |
+| Mock API 2          | http://localhost:5002/produtos |
 
 O Mock API 2 inclui o campo adicional `categoria`. Ambos os mocks aceitam
 `?falhar=true` para responder HTTP 500, `?atrasar=true` para aguardar três segundos e
@@ -41,6 +41,34 @@ O Mock API 2 inclui o campo adicional `categoria`. Ambos os mocks aceitam
 
 Na primeira inicialização, a API cria o banco `ApiSentinel` e aplica automaticamente todas
 as migrations pendentes antes de começar a aceitar requisições.
+
+### Seed opcional de desenvolvimento
+
+Para criar dados locais de demonstração automaticamente, defina a flag no `.env` antes de
+subir os containers:
+
+```dotenv
+SEED_DEV_DATA=true
+```
+
+Ou habilite apenas para uma execução no PowerShell:
+
+```powershell
+$env:SEED_DEV_DATA = "true"
+docker compose up --build -d
+Remove-Item Env:SEED_DEV_DATA
+```
+
+O seed é idempotente e cria, quando ausentes:
+
+- usuário local `dev@apisentinel.local`, senha `DevSentinel#2026`;
+- `Mock API 1` em `http://mock-api-1:8080`;
+- `Mock API 2` em `http://mock-api-2:8080`;
+- endpoint `GET /produtos` e um monitor ativo de 60 segundos para cada mock.
+
+Essas credenciais são exclusivamente para desenvolvimento local. O código exige ao mesmo
+tempo `SeedData:Enabled=true` e ambiente `Development`; se a flag for ligada em qualquer outro
+ambiente, a aplicação recusa a inicialização.
 
 ## Autenticação, catálogo e monitoramento
 
@@ -88,6 +116,15 @@ Para executar a suíte de integração dos Marcos 1, 2 e 3:
 dotnet test src/ApiSentinel.sln
 ```
 
+O build do cliente verifica automaticamente se todos os prefixos públicos detectados no
+backend possuem regra em `client/proxy.conf.json`. A verificação também pode ser executada
+isoladamente:
+
+```powershell
+cd client
+npm run check:proxy
+```
+
 Os testes sobem a aplicação em memória e fazem chamadas HTTP reais. Além do Marco 1, validam
 CRUD e autorização dos monitores, bloqueio SSRF de IP privado e metadata de nuvem, allowlist
 dos dois mocks, timeout, limite de resposta, sanitização do trecho do corpo, agendamento
@@ -116,5 +153,12 @@ Para encerrar os serviços:
 docker compose down
 ```
 
-Use `docker compose down --volumes` somente quando também quiser apagar os dados locais do
-SQL Server e o volume de dependências do cliente.
+Para validar um novo build preservando usuários, APIs, monitores e histórico:
+
+```powershell
+docker compose down
+docker compose up --build -d
+```
+
+Use `docker compose down --volumes` somente quando um teste de ambiente totalmente limpo for
+pedido explicitamente; esse comando apaga os dados locais do SQL Server.
