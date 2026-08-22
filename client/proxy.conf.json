@@ -4,5 +4,23 @@
     "secure": false,
     "changeOrigin": true,
     "logLevel": "info"
+  },
+  "/auth": {
+    "target": "http://api:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/api-services": {
+    "target": "http://api:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/endpoints": {
+    "target": "http://api:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
   }
 }

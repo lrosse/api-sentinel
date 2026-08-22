@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MockApi1", "..\mocks\mock-a
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MockApi2", "..\mocks\mock-api-2\MockApi2.csproj", "{CD86D287-1728-4CD4-89C6-5254D40A5F31}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiSentinel.Api.IntegrationTests", "..\tests\ApiSentinel.Api.IntegrationTests\ApiSentinel.Api.IntegrationTests.csproj", "{B3972874-215C-4FD0-8CE2-4653CD533EF5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -62,6 +64,10 @@ Global
 		{CD86D287-1728-4CD4-89C6-5254D40A5F31}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CD86D287-1728-4CD4-89C6-5254D40A5F31}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CD86D287-1728-4CD4-89C6-5254D40A5F31}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3972874-215C-4FD0-8CE2-4653CD533EF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3972874-215C-4FD0-8CE2-4653CD533EF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3972874-215C-4FD0-8CE2-4653CD533EF5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3972874-215C-4FD0-8CE2-4653CD533EF5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{595CDC98-D505-4247-AC8F-E33D7ED5F5EF} = {BEE73AE6-6EEE-4583-A8AD-A95F06AB84F1}

@@ -1,0 +1,35 @@
+<main class="auth-page">
+  <section class="auth-card" aria-labelledby="login-title">
+    <a class="brand" routerLink="/">API Sentinel</a>
+    <p class="eyebrow">Marco 1 · Acesso</p>
+    <h1 id="login-title">Entre na sua conta</h1>
+    <p class="muted">Acesse seu catálogo privado de APIs e endpoints.</p>
+
+    <form (ngSubmit)="submit()">
+      <label>
+        E-mail
+        <input type="email" name="email" [(ngModel)]="email" autocomplete="email" required />
+      </label>
+      <label>
+        Senha
+        <input
+          type="password"
+          name="password"
+          [(ngModel)]="password"
+          autocomplete="current-password"
+          required
+        />
+      </label>
+
+      @if (error()) {
+        <p class="alert" role="alert">{{ error() }}</p>
+      }
+
+      <button class="button button--primary button--full" type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Entrando…' : 'Entrar' }}
+      </button>
+    </form>
+
+    <p class="auth-switch">Ainda não tem conta? <a routerLink="/register">Criar conta</a></p>
+  </section>
+</main>

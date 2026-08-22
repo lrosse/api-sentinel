@@ -2,8 +2,8 @@
 
 Plataforma para monitoramento de APIs e detecção de mudanças de contrato.
 
-> O projeto está no **Marco 0 (setup)**. A infraestrutura e a comunicação entre os
-> componentes estão prontas, mas ainda não há funcionalidades de negócio.
+> O projeto está no **Marco 1**. A infraestrutura reproduzível, autenticação por cookie e o
+> catálogo privado de APIs e endpoints estão implementados.
 
 ## Pré-requisitos
 
@@ -40,6 +40,36 @@ O Mock API 2 inclui o campo adicional `categoria`. Ambos os mocks aceitam
 Na primeira inicialização, a API cria o banco `ApiSentinel` e aplica automaticamente todas
 as migrations pendentes antes de começar a aceitar requisições.
 
+## Autenticação e catálogo
+
+Abra o cliente Angular, crie uma conta e use a tela de catálogo para cadastrar APIs e seus
+endpoints. Cada registro fica obrigatoriamente vinculado ao usuário autenticado; tentativas de
+acessar um registro de outro usuário respondem `404`, sem revelar que ele existe.
+
+A autenticação usa o ASP.NET Core Identity com cookie `HttpOnly`, `Secure` e
+`SameSite=Strict`. O modo `Strict` foi mantido porque o proxy de desenvolvimento serve as
+chamadas de API pela mesma origem do Angular. As chaves do ASP.NET Data Protection são
+persistidas no volume `data_protection_keys`, portanto os cookies não dependem do ciclo de vida
+efêmero do container da API.
+
+Endpoints disponíveis:
+
+- autenticação: `/auth/register`, `/auth/login`, `/auth/logout` e `/auth/me`;
+- catálogo: `/api-services`, `/api-services/{id}/endpoints` e `/endpoints/{id}`.
+
+Todos os endpoints do catálogo exigem um cookie de autenticação válido.
+
+## Testes
+
+Para executar a suíte de integração do Marco 1:
+
+```powershell
+dotnet test src/ApiSentinel.sln
+```
+
+Os testes sobem a aplicação em memória e fazem chamadas HTTP reais para validar autenticação,
+validação de URL, o fluxo CRUD completo e o isolamento entre dois proprietários distintos.
+
 ## Validação rápida
 
 Com os containers rodando, execute em outro PowerShell:
@@ -51,6 +81,7 @@ Invoke-RestMethod http://localhost:5002/produtos
 curl.exe -i "http://localhost:5001/produtos?falhar=true"
 Measure-Command { Invoke-RestMethod "http://localhost:5002/produtos?atrasar=true" }
 docker compose ps
+dotnet test src/ApiSentinel.sln
 ```
 
 Para encerrar os serviços:

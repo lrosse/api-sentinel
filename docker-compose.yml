@@ -30,8 +30,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ApiSentinel;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
+      DataProtection__KeysPath: /var/lib/api-sentinel/data-protection-keys
     ports:
       - "8080:8080"
+    volumes:
+      - data_protection_keys:/var/lib/api-sentinel/data-protection-keys
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -101,4 +104,5 @@ services:
 
 volumes:
   sqlserver_data:
+  data_protection_keys:
   client_node_modules:

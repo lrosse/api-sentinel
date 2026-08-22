@@ -5,6 +5,7 @@
 # .NET
 **/bin/
 **/obj/
+**/TestResults/
 .vs/
 
 # Angular / Node

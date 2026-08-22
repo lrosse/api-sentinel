@@ -20,6 +20,15 @@ public static class DatabaseInitializer
         var logger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(DatabaseInitializer));
+        var environment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+
+        if (environment.IsEnvironment("Testing") && !context.Database.IsSqlServer())
+        {
+            await context.Database.EnsureCreatedAsync(cancellationToken);
+            logger.LogInformation(
+                "Database schema created from the EF Core model for the non-SQL Server test provider.");
+            return;
+        }
 
         for (var attempt = 1; attempt <= MaxMigrationAttempts; attempt++)
         {

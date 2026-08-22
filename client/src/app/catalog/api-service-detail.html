@@ -1,0 +1,126 @@
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/catalog">API Sentinel</a>
+    <div class="topbar__account">
+      <span>{{ currentUser()?.email }}</span>
+      <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <a class="back-link" routerLink="/catalog">← Voltar ao catálogo</a>
+
+    @if (error()) {
+      <p class="alert" role="alert">{{ error() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="empty-state">Carregando API…</p>
+    } @else if (service()) {
+      <section class="page-heading page-heading--detail">
+        <div>
+          <p class="eyebrow">Detalhe da API</p>
+          <h1>{{ service()?.name }}</h1>
+          <code class="base-url">{{ service()?.baseUrl }}</code>
+        </div>
+        <button class="button button--danger" type="button" (click)="deleteService()">Excluir API</button>
+      </section>
+
+      <div class="detail-layout">
+        <section class="panel" aria-labelledby="edit-api-title">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__kicker">Configuração</p>
+              <h2 id="edit-api-title">Dados da API</h2>
+            </div>
+          </div>
+          <form (ngSubmit)="saveService()">
+            <label>
+              Nome
+              <input name="name" [(ngModel)]="name" maxlength="120" required />
+            </label>
+            <label>
+              URL base
+              <input type="url" name="baseUrl" [(ngModel)]="baseUrl" required />
+            </label>
+            <label>
+              Descrição <span class="optional">opcional</span>
+              <textarea name="description" [(ngModel)]="description" rows="3" maxlength="1000"></textarea>
+            </label>
+            <label>
+              Tags <span class="optional">separadas por vírgula</span>
+              <input name="tags" [(ngModel)]="tags" />
+            </label>
+            <button class="button button--secondary button--full" type="submit" [disabled]="savingService()">
+              {{ savingService() ? 'Salvando…' : 'Salvar alterações' }}
+            </button>
+          </form>
+        </section>
+
+        <section class="panel panel--list" aria-labelledby="endpoints-title">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__kicker">Rotas observáveis</p>
+              <h2 id="endpoints-title">Endpoints</h2>
+            </div>
+            <span class="count-badge">{{ endpoints().length }}</span>
+          </div>
+
+          <form class="endpoint-form" (ngSubmit)="saveEndpoint()">
+            <label>
+              Método
+              <select name="endpointMethod" [(ngModel)]="endpointMethod">
+                @for (method of methods; track method) {
+                  <option [value]="method">{{ method }}</option>
+                }
+              </select>
+            </label>
+            <label class="endpoint-form__path">
+              Path
+              <input
+                name="endpointPath"
+                [(ngModel)]="endpointPath"
+                placeholder="/produtos/{id}"
+                required
+              />
+            </label>
+            <button class="button button--primary" type="submit" [disabled]="savingEndpoint()">
+              {{ editingEndpointId() ? 'Atualizar' : 'Adicionar' }}
+            </button>
+            @if (editingEndpointId()) {
+              <button class="button button--ghost" type="button" (click)="cancelEndpointEdit()">
+                Cancelar
+              </button>
+            }
+          </form>
+
+          @if (endpoints().length === 0) {
+            <div class="empty-state">
+              <strong>Nenhum endpoint cadastrado.</strong>
+              <span>Adicione a primeira rota usando o formulário acima.</span>
+            </div>
+          } @else {
+            <div class="endpoint-list">
+              @for (endpoint of endpoints(); track endpoint.id) {
+                <article class="endpoint-row">
+                  <span class="method method--{{ endpoint.method.toLowerCase() }}">{{ endpoint.method }}</span>
+                  <code>{{ endpoint.path }}</code>
+                  <div class="endpoint-row__actions">
+                    <button class="icon-button" type="button" (click)="editEndpoint(endpoint)">Editar</button>
+                    <button
+                      class="icon-button icon-button--danger"
+                      type="button"
+                      (click)="deleteEndpoint(endpoint)"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </section>
+      </div>
+    }
+  </main>
+</div>

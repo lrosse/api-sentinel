@@ -1,0 +1,113 @@
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/catalog">API Sentinel</a>
+    <div class="topbar__account">
+      <span>{{ currentUser()?.email }}</span>
+      <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">Marco 1 · Catálogo</p>
+        <h1>Suas APIs</h1>
+        <p class="muted">Cadastre os serviços e os endpoints que serão monitorados nos próximos marcos.</p>
+      </div>
+      <span class="count-badge">{{ services().length }} {{ services().length === 1 ? 'API' : 'APIs' }}</span>
+    </section>
+
+    @if (error()) {
+      <p class="alert" role="alert">{{ error() }}</p>
+    }
+
+    <div class="catalog-layout">
+      <section class="panel" aria-labelledby="new-api-title">
+        <div class="panel__heading">
+          <div>
+            <p class="panel__kicker">Novo registro</p>
+            <h2 id="new-api-title">Cadastrar API</h2>
+          </div>
+        </div>
+
+        <form (ngSubmit)="createService()">
+          <label>
+            Nome
+            <input name="name" [(ngModel)]="name" maxlength="120" required />
+          </label>
+          <label>
+            URL base
+            <input
+              type="url"
+              name="baseUrl"
+              [(ngModel)]="baseUrl"
+              placeholder="https://api.exemplo.com"
+              required
+            />
+          </label>
+          <label>
+            Descrição <span class="optional">opcional</span>
+            <textarea name="description" [(ngModel)]="description" rows="3" maxlength="1000"></textarea>
+          </label>
+          <label>
+            Tags <span class="optional">separadas por vírgula</span>
+            <input name="tags" [(ngModel)]="tags" placeholder="produção, catálogo" />
+          </label>
+          <button class="button button--primary button--full" type="submit" [disabled]="saving()">
+            {{ saving() ? 'Salvando…' : 'Cadastrar API' }}
+          </button>
+        </form>
+      </section>
+
+      <section class="panel panel--list" aria-labelledby="api-list-title">
+        <div class="panel__heading">
+          <div>
+            <p class="panel__kicker">Inventário</p>
+            <h2 id="api-list-title">Serviços cadastrados</h2>
+          </div>
+        </div>
+
+        @if (loading()) {
+          <p class="empty-state">Carregando catálogo…</p>
+        } @else if (services().length === 0) {
+          <div class="empty-state">
+            <strong>Nenhuma API cadastrada.</strong>
+            <span>Use o formulário ao lado para criar a primeira.</span>
+          </div>
+        } @else {
+          <div class="service-list">
+            @for (apiService of services(); track apiService.id) {
+              <article class="service-card">
+                <a class="service-card__main" [routerLink]="['/api-services', apiService.id]">
+                  <div class="service-card__title">
+                    <h3>{{ apiService.name }}</h3>
+                    <span class="arrow" aria-hidden="true">→</span>
+                  </div>
+                  <code>{{ apiService.baseUrl }}</code>
+                  @if (apiService.description) {
+                    <p>{{ apiService.description }}</p>
+                  }
+                  @if (apiService.tags.length > 0) {
+                    <div class="tags">
+                      @for (tag of apiService.tags; track tag) {
+                        <span>{{ tag }}</span>
+                      }
+                    </div>
+                  }
+                </a>
+                <button
+                  class="icon-button icon-button--danger"
+                  type="button"
+                  title="Excluir API"
+                  (click)="deleteService(apiService.id, apiService.name)"
+                >
+                  Excluir
+                </button>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    </div>
+  </main>
+</div>

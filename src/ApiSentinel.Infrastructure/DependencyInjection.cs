@@ -1,9 +1,13 @@
 using ApiSentinel.Infrastructure.Persistence;
+using ApiSentinel.Modules.ApiCatalog;
+using ApiSentinel.Modules.Identity;
 using Hangfire;
 using Hangfire.SqlServer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ApiSentinel.Infrastructure;
 
@@ -11,7 +15,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException(
@@ -20,17 +25,37 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(connectionString));
 
-        services.AddHangfire(globalConfiguration => globalConfiguration
-            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-            .UseSimpleAssemblyNameTypeSerializer()
-            .UseRecommendedSerializerSettings()
-            .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
-            {
-                PrepareSchemaIfNecessary = true,
-                QueuePollInterval = TimeSpan.FromSeconds(15)
-            }));
+        services.AddIdentityModule()
+            .AddEntityFrameworkStores<AppDbContext>();
 
-        services.AddHangfireServer();
+        services.AddScoped<IApiCatalogDbContext>(provider =>
+            provider.GetRequiredService<AppDbContext>());
+
+        var dataProtection = services
+            .AddDataProtection()
+            .SetApplicationName("ApiSentinel");
+
+        var dataProtectionKeysPath = configuration["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+        {
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+        }
+
+        if (!environment.IsEnvironment("Testing") &&
+            configuration.GetValue("Hangfire:Enabled", true))
+        {
+            services.AddHangfire(globalConfiguration => globalConfiguration
+                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                .UseSimpleAssemblyNameTypeSerializer()
+                .UseRecommendedSerializerSettings()
+                .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+                {
+                    PrepareSchemaIfNecessary = true,
+                    QueuePollInterval = TimeSpan.FromSeconds(15)
+                }));
+
+            services.AddHangfireServer();
+        }
 
         return services;
     }
