@@ -33,6 +33,8 @@ public sealed class Marco2IntegrationTests :
         { $"/monitors/{Guid.NewGuid()}", HttpMethod.Delete, null },
         { $"/monitors/{Guid.NewGuid()}/run", HttpMethod.Post, null },
         { $"/monitors/{Guid.NewGuid()}/runs", HttpMethod.Get, null },
+        { $"/monitors/{Guid.NewGuid()}/contract-changes", HttpMethod.Get, null },
+        { $"/monitors/{Guid.NewGuid()}/schema-snapshot/latest", HttpMethod.Get, null },
         { "/dashboard/summary", HttpMethod.Get, null }
     };
 
@@ -307,6 +309,7 @@ internal sealed class LocalHttpMockServer : IAsyncDisposable
     private Task? _acceptLoop;
 
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+    public Func<string, string>? JsonBodyFactory { get; set; }
 
     public Task StartAsync()
     {
@@ -401,6 +404,7 @@ internal sealed class LocalHttpMockServer : IAsyncDisposable
                 else
                 {
                     body = Encoding.UTF8.GetBytes(
+                        JsonBodyFactory?.Invoke(target) ??
                         "{\"ok\":true,\"token\":\"segredo-de-teste\"}");
                     contentType = "application/json";
                 }

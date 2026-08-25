@@ -10,6 +10,8 @@ public interface IMonitoringDbContext
     DbSet<Endpoint> Endpoints { get; }
     DbSet<Domain.Monitor> Monitors { get; }
     DbSet<CheckRun> CheckRuns { get; }
+    DbSet<SchemaSnapshot> SchemaSnapshots { get; }
+    DbSet<ContractChange> ContractChanges { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

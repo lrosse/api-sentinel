@@ -80,6 +80,7 @@ services:
       dockerfile: mocks/mock-api-1/Dockerfile
     environment:
       ASPNETCORE_HTTP_PORTS: 8080
+      CONTRACT_MODE: "${CONTRACT_MODE:-v1}"
     ports:
       - "5001:8080"
     healthcheck:

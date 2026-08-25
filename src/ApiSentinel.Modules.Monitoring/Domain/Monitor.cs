@@ -14,4 +14,6 @@ public sealed class Monitor
     public List<string> IgnoredPaths { get; set; } = [];
     public required Endpoint Endpoint { get; set; }
     public List<CheckRun> CheckRuns { get; set; } = [];
+    public List<SchemaSnapshot> SchemaSnapshots { get; set; } = [];
+    public List<ContractChange> ContractChanges { get; set; } = [];
 }

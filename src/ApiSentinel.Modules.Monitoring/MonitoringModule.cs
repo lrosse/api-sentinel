@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text.Json;
+using ApiSentinel.Modules.Monitoring.ContractAnalysis;
 using ApiSentinel.Modules.Monitoring.Domain;
 using ApiSentinel.Modules.Monitoring.HttpExecution;
 using ApiSentinel.Modules.Monitoring.Scheduling;
@@ -40,12 +42,23 @@ public static class MonitoringModule
             .ValidateOnStart();
         services.AddOptions<NetworkSecurityOptions>()
             .Bind(configuration.GetSection(NetworkSecurityOptions.SectionName));
+        services.AddOptions<ContractAnalysisOptions>()
+            .Bind(configuration.GetSection(ContractAnalysisOptions.SectionName))
+            .Validate(
+                value => value.MaxDepth is >= 1 and <= 64,
+                "Monitoring:ContractAnalysis:MaxDepth deve ficar entre 1 e 64.")
+            .Validate(
+                value => value.MaxFields is >= 1 and <= 10_000,
+                "Monitoring:ContractAnalysis:MaxFields deve ficar entre 1 e 10000.")
+            .ValidateOnStart();
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
         services.AddSingleton<ISsrfTargetValidator, SsrfTargetValidator>();
         services.AddSingleton<IMonitorExecutionGate, MonitorExecutionGate>();
         services.AddScoped<IHttpMonitorExecutor, HttpMonitorExecutor>();
+        services.AddSingleton<ISchemaStructureAnalyzer, SchemaStructureAnalyzer>();
+        services.AddSingleton<IContractSchemaComparer, ContractSchemaComparer>();
         services.AddScoped<IMonitorRunner, MonitorRunner>();
         services.AddScoped<IScheduledMonitorJob, ScheduledMonitorJob>();
         services.TryAddSingleton<IMonitorScheduleManager, DisabledMonitorScheduleManager>();
@@ -69,6 +82,8 @@ public static class MonitoringModule
         monitors.MapDelete("/{id:guid}", DeleteMonitorAsync);
         monitors.MapPost("/{id:guid}/run", RunMonitorAsync);
         monitors.MapGet("/{id:guid}/runs", ListCheckRunsAsync);
+        monitors.MapGet("/{id:guid}/contract-changes", ListContractChangesAsync);
+        monitors.MapGet("/{id:guid}/schema-snapshot/latest", GetLatestSchemaSnapshotAsync);
 
         endpoints.MapGet("/dashboard/summary", GetDashboardSummaryAsync)
             .WithTags("Dashboard")
@@ -309,6 +324,69 @@ public static class MonitoringModule
         return Results.Ok(runs);
     }
 
+    private static async Task<IResult> ListContractChangesAsync(
+        Guid id,
+        int? limit,
+        ClaimsPrincipal principal,
+        IMonitoringDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (ownerUserId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var ownsMonitor = await dbContext.Monitors.AnyAsync(
+            candidate => candidate.Id == id &&
+                         candidate.Endpoint.ApiService.OwnerUserId == ownerUserId,
+            cancellationToken);
+        if (!ownsMonitor)
+        {
+            return Results.NotFound();
+        }
+
+        var resultLimit = Math.Clamp(limit ?? 50, 1, 100);
+        var changes = await dbContext.ContractChanges
+            .AsNoTracking()
+            .Where(change => change.MonitorId == id)
+            .OrderByDescending(change => change.DetectedAt)
+            .ThenByDescending(change => change.Id)
+            .Take(resultLimit)
+            .ToListAsync(cancellationToken);
+        return Results.Ok(changes.Select(ToResponse).ToList());
+    }
+
+    private static async Task<IResult> GetLatestSchemaSnapshotAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        IMonitoringDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (ownerUserId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var ownsMonitor = await dbContext.Monitors.AnyAsync(
+            candidate => candidate.Id == id &&
+                         candidate.Endpoint.ApiService.OwnerUserId == ownerUserId,
+            cancellationToken);
+        if (!ownsMonitor)
+        {
+            return Results.NotFound();
+        }
+
+        var snapshot = await dbContext.SchemaSnapshots
+            .AsNoTracking()
+            .Where(candidate => candidate.MonitorId == id)
+            .OrderByDescending(candidate => candidate.CapturedAt)
+            .ThenByDescending(candidate => candidate.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return snapshot is null ? Results.NoContent() : Results.Ok(ToResponse(snapshot));
+    }
+
     private static async Task<IResult> GetDashboardSummaryAsync(
         ClaimsPrincipal principal,
         IMonitoringDbContext dbContext,
@@ -517,6 +595,25 @@ public static class MonitoringModule
             run.ErrorMessage,
             run.ResponseBodySnippet);
 
+    private static ContractChangeResponse ToResponse(ContractChange change) =>
+        new(
+            change.Id,
+            change.MonitorId,
+            AsUtc(change.DetectedAt),
+            change.FromSnapshotId,
+            change.ToSnapshotId,
+            change.Classification,
+            ContractSchemaComparer.DeserializeChanges(change.ChangesJson));
+
+    private static SchemaSnapshotResponse ToResponse(SchemaSnapshot snapshot) =>
+        new(
+            snapshot.Id,
+            snapshot.MonitorId,
+            AsUtc(snapshot.CapturedAt),
+            snapshot.StructureHash,
+            snapshot.AnalysisStatus,
+            JsonSerializer.Deserialize<SchemaField[]>(snapshot.StructureJson) ?? []);
+
     private static DateTime AsUtc(DateTime value) =>
         value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
@@ -548,6 +645,23 @@ public static class MonitoringModule
         long LatencyMs,
         string? ErrorMessage,
         string? ResponseBodySnippet);
+
+    public sealed record ContractChangeResponse(
+        Guid Id,
+        Guid MonitorId,
+        DateTime DetectedAt,
+        Guid FromSnapshotId,
+        Guid ToSnapshotId,
+        ContractChangeClassification Classification,
+        IReadOnlyCollection<ContractFieldChange> Changes);
+
+    public sealed record SchemaSnapshotResponse(
+        Guid Id,
+        Guid MonitorId,
+        DateTime CapturedAt,
+        string StructureHash,
+        SchemaAnalysisStatus AnalysisStatus,
+        IReadOnlyCollection<SchemaField> Structure);
 
     private sealed record DashboardApiServiceRow(Guid Id, string Name);
 

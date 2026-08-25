@@ -27,7 +27,7 @@
     } @else if (endpoint()) {
       <section class="page-heading page-heading--detail">
         <div>
-          <p class="eyebrow">Marco 3 · Execução manual e agendada</p>
+          <p class="eyebrow">Marco 4 · Detecção de mudança de contrato</p>
           <h1>{{ endpoint()?.method }} {{ endpoint()?.path }}</h1>
           <code class="base-url">{{ apiService()?.baseUrl }}{{ endpoint()?.path }}</code>
         </div>
@@ -110,8 +110,7 @@
               />
             </label>
             <p class="field-hint">
-              Os paths serão usados pelo diff estrutural no Marco 4; ainda não alteram esta
-              execução.
+              O path e todos os seus descendentes são excluídos dos snapshots e do diff.
             </p>
             <button class="button button--primary button--full" type="submit" [disabled]="saving()">
               {{ saving() ? 'Salvando…' : editingMonitorId() ? 'Salvar monitor' : 'Criar monitor' }}
@@ -203,6 +202,89 @@
                     }
                   </div>
                 }
+
+                <section class="contract-panel" aria-label="Estado do contrato">
+                  <div class="contract-panel__heading">
+                    <h3>Contrato da resposta</h3>
+                    @if (latestContractChangeFor(monitor.id); as latestChange) {
+                      <span
+                        class="contract-state"
+                        [class.contract-state--compatible]="
+                          latestChange.classification === 'Compatible'
+                        "
+                        [class.contract-state--breaking]="
+                          latestChange.classification === 'Breaking'
+                        "
+                      >
+                        {{
+                          latestChange.classification === 'Compatible'
+                            ? 'Mudança compatível detectada'
+                            : 'Mudança quebradora detectada'
+                        }}
+                      </span>
+                    } @else {
+                      <span class="contract-state contract-state--stable">Sem mudanças</span>
+                    }
+                  </div>
+
+                  @if (latestSnapshotFor(monitor.id); as snapshot) {
+                    @if (snapshot.analysisStatus === 'TooComplex') {
+                      <p class="contract-warning">
+                        Estrutura complexa demais para análise completa; nenhum diff foi gerado.
+                      </p>
+                    } @else {
+                      <p class="contract-meta">
+                        {{ snapshot.structure.length }} paths conhecidos · capturado em
+                        {{ snapshot.capturedAt | date: 'dd/MM/yyyy HH:mm:ss' }}
+                      </p>
+                    }
+                  } @else {
+                    <p class="contract-meta">A primeira execução bem-sucedida criará o baseline.</p>
+                  }
+
+                  <h4>Histórico de mudanças</h4>
+                  @if (contractChangesFor(monitor.id).length === 0) {
+                    <p class="muted">Nenhuma mudança estrutural detectada.</p>
+                  } @else {
+                    <div class="contract-history">
+                      @for (
+                        contractChange of contractChangesFor(monitor.id);
+                        track contractChange.id
+                      ) {
+                        <article class="contract-change">
+                          <div class="contract-change__heading">
+                            <strong>
+                              {{
+                                contractChange.classification === 'Compatible'
+                                  ? 'Compatível'
+                                  : 'Quebradora'
+                              }}
+                            </strong>
+                            <time>{{
+                              contractChange.detectedAt | date: 'dd/MM/yyyy HH:mm:ss'
+                            }}</time>
+                          </div>
+                          <ul>
+                            @for (
+                              change of contractChange.changes;
+                              track change.path + change.changeType
+                            ) {
+                              <li>
+                                <code>{{ change.path }}</code>
+                                <span>{{ changeTypeLabel(change.changeType) }}</span>
+                                @if (change.changeType === 'TypeChanged') {
+                                  <small>{{ change.oldType }} → {{ change.newType }}</small>
+                                } @else {
+                                  <small>{{ change.oldType ?? change.newType }}</small>
+                                }
+                              </li>
+                            }
+                          </ul>
+                        </article>
+                      }
+                    </div>
+                  }
+                </section>
 
                 <div class="run-history">
                   <h3>Últimas execuções</h3>

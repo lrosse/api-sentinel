@@ -7,7 +7,14 @@ import { AuthService } from '../auth/auth.service';
 import { ApiEndpoint, ApiService } from '../catalog/catalog.models';
 import { CatalogService } from '../catalog/catalog.service';
 import { apiErrorMessage } from '../shared/api-error';
-import { ApiMonitor, CheckRun, MonitorInput } from './monitoring.models';
+import {
+  ApiMonitor,
+  CheckRun,
+  ContractChange,
+  ContractChangeType,
+  MonitorInput,
+  SchemaSnapshot,
+} from './monitoring.models';
 import { MonitoringService } from './monitoring.service';
 
 @Component({
@@ -28,6 +35,8 @@ export class EndpointDetail implements OnInit {
   protected readonly monitors = signal<ApiMonitor[]>([]);
   protected readonly runsByMonitor = signal<Record<string, CheckRun[]>>({});
   protected readonly latestResultByMonitor = signal<Record<string, CheckRun>>({});
+  protected readonly contractChangesByMonitor = signal<Record<string, ContractChange[]>>({});
+  protected readonly latestSnapshotByMonitor = signal<Record<string, SchemaSnapshot | null>>({});
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly editingMonitorId = signal<string | null>(null);
@@ -63,6 +72,11 @@ export class EndpointDetail implements OnInit {
         });
         if (!monitorId) {
           this.runsByMonitor.update((runs) => ({ ...runs, [monitor.id]: [] }));
+          this.contractChangesByMonitor.update((changes) => ({ ...changes, [monitor.id]: [] }));
+          this.latestSnapshotByMonitor.update((snapshots) => ({
+            ...snapshots,
+            [monitor.id]: null,
+          }));
         }
         this.cancelEdit();
       },
@@ -104,6 +118,16 @@ export class EndpointDetail implements OnInit {
           delete updated[monitor.id];
           return updated;
         });
+        this.contractChangesByMonitor.update((changes) => {
+          const updated = { ...changes };
+          delete updated[monitor.id];
+          return updated;
+        });
+        this.latestSnapshotByMonitor.update((snapshots) => {
+          const updated = { ...snapshots };
+          delete updated[monitor.id];
+          return updated;
+        });
         if (this.editingMonitorId() === monitor.id) {
           this.cancelEdit();
         }
@@ -126,6 +150,7 @@ export class EndpointDetail implements OnInit {
             ...runs,
             [monitor.id]: [run, ...(runs[monitor.id] ?? []).filter((item) => item.id !== run.id)],
           }));
+          this.loadContract(monitor.id);
         },
         error: (error: unknown) =>
           this.error.set(apiErrorMessage(error, 'Não foi possível executar o monitor.')),
@@ -138,6 +163,29 @@ export class EndpointDetail implements OnInit {
 
   protected latestResultFor(monitorId: string): CheckRun | null {
     return this.latestResultByMonitor()[monitorId] ?? null;
+  }
+
+  protected contractChangesFor(monitorId: string): ContractChange[] {
+    return this.contractChangesByMonitor()[monitorId] ?? [];
+  }
+
+  protected latestContractChangeFor(monitorId: string): ContractChange | null {
+    return this.contractChangesFor(monitorId)[0] ?? null;
+  }
+
+  protected latestSnapshotFor(monitorId: string): SchemaSnapshot | null {
+    return this.latestSnapshotByMonitor()[monitorId] ?? null;
+  }
+
+  protected changeTypeLabel(type: ContractChangeType): string {
+    switch (type) {
+      case 'Added':
+        return 'Adicionado';
+      case 'Removed':
+        return 'Removido';
+      case 'TypeChanged':
+        return 'Tipo alterado';
+    }
   }
 
   protected logout(): void {
@@ -166,6 +214,7 @@ export class EndpointDetail implements OnInit {
           this.monitors.set(monitors);
           for (const monitor of monitors) {
             this.loadRuns(monitor.id);
+            this.loadContract(monitor.id);
           }
         },
         error: (error: unknown) =>
@@ -178,6 +227,26 @@ export class EndpointDetail implements OnInit {
       next: (runs) => this.runsByMonitor.update((current) => ({ ...current, [monitorId]: runs })),
       error: (error: unknown) =>
         this.error.set(apiErrorMessage(error, 'Não foi possível carregar o histórico.')),
+    });
+  }
+
+  private loadContract(monitorId: string): void {
+    forkJoin({
+      changes: this.monitoring.listContractChanges(monitorId),
+      snapshot: this.monitoring.getLatestSchemaSnapshot(monitorId),
+    }).subscribe({
+      next: ({ changes, snapshot }) => {
+        this.contractChangesByMonitor.update((current) => ({
+          ...current,
+          [monitorId]: changes,
+        }));
+        this.latestSnapshotByMonitor.update((current) => ({
+          ...current,
+          [monitorId]: snapshot,
+        }));
+      },
+      error: (error: unknown) =>
+        this.error.set(apiErrorMessage(error, 'Não foi possível carregar o contrato.')),
     });
   }
 

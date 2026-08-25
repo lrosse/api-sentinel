@@ -2,9 +2,9 @@
 
 Plataforma para monitoramento de APIs e detecção de mudanças de contrato.
 
-> O projeto está no **Marco 3**. A infraestrutura reproduzível, autenticação por cookie,
-> catálogo privado, execução manual protegida contra SSRF, agendamento via Hangfire, histórico
-> e dashboard operacional estão implementados.
+> O projeto está no **Marco 4**. Além da infraestrutura, autenticação, catálogo, execução
+> protegida contra SSRF e agendamento via Hangfire, o sistema captura snapshots estruturais e
+> detecta mudanças compatíveis ou quebradoras no contrato das respostas.
 
 ## Pré-requisitos
 
@@ -38,6 +38,10 @@ Depois que os serviços estiverem saudáveis, acesse:
 O Mock API 2 inclui o campo adicional `categoria`. Ambos os mocks aceitam
 `?falhar=true` para responder HTTP 500, `?atrasar=true` para aguardar três segundos e
 `?grande=true` para devolver um corpo acima do limite de 1 MB do executor.
+
+Como ferramenta exclusiva de teste e demonstração, o `mock-api-1` lê `CONTRACT_MODE` ao
+iniciar: `v1` devolve o contrato original; `v2` acrescenta `categoria`; `v3` mantém
+`categoria`, remove `nome` e muda `id` de número para string. O padrão é `v1`.
 
 Na primeira inicialização, a API cria o banco `ApiSentinel` e aplica automaticamente todas
 as migrations pendentes antes de começar a aceitar requisições.
@@ -88,6 +92,17 @@ consultar as últimas 50 execuções. Cada monitor também possui um intervalo e
 agendamento pausado e retomado sem apagar o histórico. Recurring jobs nativos do Hangfire têm
 granularidade de minuto, então o backend rejeita intervalos menores que 60 segundos.
 
+Cada execução bem-sucedida também cria um `SchemaSnapshot` contendo somente a lista canônica
+de paths e tipos — valores da resposta nunca são persistidos nem comparados. O diff é recursivo,
+usa a forma do primeiro elemento para arrays e compara sempre com o snapshot imediatamente
+anterior. Campo adicionado é compatível; campo removido ou tipo alterado é quebrador. Paths
+ignorados e todos os seus descendentes ficam fora tanto do snapshot quanto do diff.
+
+A análise é limitada por padrão a 10 níveis e 500 campos. Uma resposta acima desses limites
+continua gerando um snapshot marcado como `TooComplex`, sem derrubar a execução e sem produzir
+um diff parcial potencialmente enganoso. A tela do monitor mostra o estado mais recente do
+contrato e o histórico detalhado das mudanças por path.
+
 A home autenticada é o dashboard (`/dashboard`). Ela carrega um único resumo agregado por API,
 com o último status, horário, latência e a sequência atual de falhas de cada monitor. A sequência
 é apenas visual neste marco; ainda não cria incidentes.
@@ -104,13 +119,15 @@ Endpoints disponíveis:
 - catálogo: `/api-services`, `/api-services/{id}/endpoints` e `/endpoints/{id}`;
 - monitores: `/endpoints/{id}/monitors`, `/monitors/{id}`, `/monitors/{id}/run` e
   `/monitors/{id}/runs`;
+- contratos: `/monitors/{id}/contract-changes` e
+  `/monitors/{id}/schema-snapshot/latest`;
 - dashboard: `/dashboard/summary`.
 
 Todos os endpoints do catálogo exigem um cookie de autenticação válido.
 
 ## Testes
 
-Para executar a suíte de integração dos Marcos 1, 2 e 3:
+Para executar a suíte de integração dos Marcos 1 a 4:
 
 ```powershell
 dotnet test src/ApiSentinel.sln
@@ -129,7 +146,55 @@ Os testes sobem a aplicação em memória e fazem chamadas HTTP reais. Além do 
 CRUD e autorização dos monitores, bloqueio SSRF de IP privado e metadata de nuvem, allowlist
 dos dois mocks, timeout, limite de resposta, sanitização do trecho do corpo, agendamento
 automático, pausa/retomada, remoção de recurring jobs, concorrência manual × agendada e
-isolamento do dashboard por usuário.
+isolamento do dashboard por usuário. O Marco 4 acrescenta cobertura para adição, remoção e
+troca de tipo, path aninhado, arrays de objetos, paths ignorados, snapshots idênticos, limites
+de profundidade/campos e a deriva controlada `v1 → v2 → v3`.
+
+## Demonstração manual da deriva de contrato
+
+Suba todo o ambiente com o contrato original, preservando os volumes existentes:
+
+```powershell
+docker compose down
+$env:CONTRACT_MODE = "v1"
+docker compose up --build -d
+Remove-Item Env:CONTRACT_MODE
+docker compose ps
+Start-Process http://127.0.0.1:4200
+```
+
+Na UI, entre com seu usuário. Se `SEED_DEV_DATA=true`, use `dev@apisentinel.local` /
+`DevSentinel#2026`, abra **Catálogo → Mock API 1 → GET /produtos → Monitores**, crie um monitor
+temporário com **Agendamento ativo** desmarcado e clique em **Testar agora**. A primeira
+execução cria o baseline e mostra **Sem mudanças**.
+
+Troque somente o mock para `v2` e execute o mesmo monitor novamente pela UI:
+
+```powershell
+$env:CONTRACT_MODE = "v2"
+docker compose up -d --force-recreate mock-api-1
+Remove-Item Env:CONTRACT_MODE
+docker compose ps mock-api-1
+```
+
+O estado esperado é **Mudança compatível detectada**, com `categoria` como `Adicionado`.
+Depois troque para `v3` e clique novamente em **Testar agora**:
+
+```powershell
+$env:CONTRACT_MODE = "v3"
+docker compose up -d --force-recreate mock-api-1
+Remove-Item Env:CONTRACT_MODE
+docker compose ps mock-api-1
+```
+
+O estado esperado é **Mudança quebradora detectada**, com `nome` como `Removido` e `id` como
+`Tipo alterado` (`Number → String`). Para devolver o mock ao contrato original:
+
+```powershell
+$env:CONTRACT_MODE = "v1"
+docker compose up -d --force-recreate mock-api-1
+Remove-Item Env:CONTRACT_MODE
+```
 
 ## Validação rápida
 

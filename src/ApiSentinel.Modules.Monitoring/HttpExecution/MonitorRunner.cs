@@ -1,6 +1,8 @@
+using ApiSentinel.Modules.Monitoring.ContractAnalysis;
 using ApiSentinel.Modules.Monitoring.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MonitorEntity = ApiSentinel.Modules.Monitoring.Domain.Monitor;
 
 namespace ApiSentinel.Modules.Monitoring.HttpExecution;
 
@@ -26,6 +28,8 @@ internal interface IMonitorRunner
 internal sealed class MonitorRunner(
     IMonitoringDbContext dbContext,
     IHttpMonitorExecutor executor,
+    ISchemaStructureAnalyzer schemaAnalyzer,
+    IContractSchemaComparer schemaComparer,
     IMonitorExecutionGate executionGate,
     ILogger<MonitorRunner> logger) : IMonitorRunner
 {
@@ -62,9 +66,72 @@ internal sealed class MonitorRunner(
             return new MonitorRunResult(MonitorRunState.AlreadyRunning);
         }
 
-        var checkRun = await executor.ExecuteAsync(monitor, cancellationToken);
+        var execution = await executor.ExecuteAsync(monitor, cancellationToken);
+        var checkRun = execution.CheckRun;
         dbContext.CheckRuns.Add(checkRun);
+
+        if (checkRun.Status == CheckRunStatus.Success)
+        {
+            await CaptureContractAsync(monitor, checkRun, execution.ResponseBody, cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
         return new MonitorRunResult(MonitorRunState.Completed, checkRun);
+    }
+
+    private async Task CaptureContractAsync(
+        MonitorEntity monitor,
+        CheckRun checkRun,
+        string? responseBody,
+        CancellationToken cancellationToken)
+    {
+        var previousSnapshot = await dbContext.SchemaSnapshots
+            .Where(snapshot => snapshot.MonitorId == monitor.Id)
+            .OrderByDescending(snapshot => snapshot.CapturedAt)
+            .ThenByDescending(snapshot => snapshot.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        var analysis = schemaAnalyzer.Analyze(responseBody, monitor.IgnoredPaths);
+        var snapshot = new SchemaSnapshot
+        {
+            Id = Guid.NewGuid(),
+            MonitorId = monitor.Id,
+            CapturedAt = checkRun.FinishedAt,
+            StructureHash = analysis.StructureHash,
+            StructureJson = analysis.StructureJson,
+            AnalysisStatus = analysis.Status,
+            Monitor = monitor
+        };
+        dbContext.SchemaSnapshots.Add(snapshot);
+
+        if (previousSnapshot is null ||
+            previousSnapshot.AnalysisStatus != SchemaAnalysisStatus.Complete ||
+            snapshot.AnalysisStatus != SchemaAnalysisStatus.Complete ||
+            previousSnapshot.StructureHash.Equals(snapshot.StructureHash, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var comparison = schemaComparer.Compare(
+            previousSnapshot.StructureJson,
+            snapshot.StructureJson,
+            monitor.IgnoredPaths);
+        if (comparison.Changes.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.ContractChanges.Add(new ContractChange
+        {
+            Id = Guid.NewGuid(),
+            MonitorId = monitor.Id,
+            DetectedAt = checkRun.FinishedAt,
+            FromSnapshotId = previousSnapshot.Id,
+            ToSnapshotId = snapshot.Id,
+            Classification = comparison.Classification,
+            ChangesJson = comparison.ChangesJson,
+            Monitor = monitor,
+            FromSnapshot = previousSnapshot,
+            ToSnapshot = snapshot
+        });
     }
 }

@@ -37,6 +37,11 @@ public sealed class Marco3IntegrationTests : IAsyncLifetime
         Assert.True(runs.Length >= 2);
         Assert.All(runs, run => Assert.Equal("Success", run.GetProperty("status").GetString()));
         Assert.True(GetScheduler().HasSchedule(monitorId));
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await dbContext.SchemaSnapshots.CountAsync(
+            snapshot => snapshot.MonitorId == monitorId) >= runs.Length);
     }
 
     [Fact]

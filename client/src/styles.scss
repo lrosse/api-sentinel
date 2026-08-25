@@ -654,6 +654,114 @@ select:focus {
   border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 
+.contract-panel {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.contract-panel__heading,
+.contract-change__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.contract-panel h3,
+.contract-panel h4 {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+}
+
+.contract-panel h4 {
+  margin-top: 1rem;
+}
+
+.contract-state {
+  display: inline-flex;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.contract-state--stable {
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+}
+
+.contract-state--compatible {
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+}
+
+.contract-state--breaking {
+  background: rgba(244, 63, 94, 0.12);
+  color: #fda4af;
+}
+
+.contract-meta,
+.contract-warning {
+  margin: 0.65rem 0 0;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.contract-warning {
+  color: #fcd34d;
+}
+
+.contract-history {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.65rem;
+}
+
+.contract-change {
+  padding: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 9px;
+}
+
+.contract-change__heading {
+  color: #cbd5e1;
+  font-size: 0.7rem;
+}
+
+.contract-change__heading time {
+  color: #64748b;
+}
+
+.contract-change ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contract-change li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.6rem;
+  align-items: center;
+  color: #94a3b8;
+  font-size: 0.68rem;
+}
+
+.contract-change code {
+  color: #e2e8f0;
+  overflow-wrap: anywhere;
+}
+
+.contract-change small {
+  color: #64748b;
+}
+
 .run-history h3 {
   margin: 0.8rem 0;
   color: #cbd5e1;

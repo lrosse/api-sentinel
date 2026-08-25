@@ -1,7 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ApiMonitor, CheckRun, MonitorInput } from './monitoring.models';
+import {
+  ApiMonitor,
+  CheckRun,
+  ContractChange,
+  MonitorInput,
+  SchemaSnapshot,
+} from './monitoring.models';
 
 @Injectable({ providedIn: 'root' })
 export class MonitoringService {
@@ -29,5 +35,15 @@ export class MonitoringService {
 
   listRuns(id: string, limit = 50): Observable<CheckRun[]> {
     return this.http.get<CheckRun[]>(`/monitors/${id}/runs`, { params: { limit } });
+  }
+
+  listContractChanges(id: string, limit = 50): Observable<ContractChange[]> {
+    return this.http.get<ContractChange[]>(`/monitors/${id}/contract-changes`, {
+      params: { limit },
+    });
+  }
+
+  getLatestSchemaSnapshot(id: string): Observable<SchemaSnapshot | null> {
+    return this.http.get<SchemaSnapshot | null>(`/monitors/${id}/schema-snapshot/latest`);
   }
 }

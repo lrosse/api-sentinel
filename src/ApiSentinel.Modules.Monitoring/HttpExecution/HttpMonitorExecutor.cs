@@ -13,8 +13,12 @@ namespace ApiSentinel.Modules.Monitoring.HttpExecution;
 
 internal interface IHttpMonitorExecutor
 {
-    Task<CheckRun> ExecuteAsync(MonitorEntity monitor, CancellationToken cancellationToken);
+    Task<MonitorHttpExecutionResult> ExecuteAsync(
+        MonitorEntity monitor,
+        CancellationToken cancellationToken);
 }
+
+internal sealed record MonitorHttpExecutionResult(CheckRun CheckRun, string? ResponseBody);
 
 internal sealed partial class HttpMonitorExecutor(
     ISsrfTargetValidator targetValidator,
@@ -22,7 +26,7 @@ internal sealed partial class HttpMonitorExecutor(
     TimeProvider timeProvider,
     ILogger<HttpMonitorExecutor> logger) : IHttpMonitorExecutor
 {
-    public async Task<CheckRun> ExecuteAsync(
+    public async Task<MonitorHttpExecutionResult> ExecuteAsync(
         MonitorEntity monitor,
         CancellationToken cancellationToken)
     {
@@ -38,6 +42,7 @@ internal sealed partial class HttpMonitorExecutor(
             Status = CheckRunStatus.Failure,
             LatencyMs = 0
         };
+        string? responseBody = null;
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(TimeSpan.FromMilliseconds(monitor.TimeoutMs));
 
@@ -61,6 +66,7 @@ internal sealed partial class HttpMonitorExecutor(
             result.HttpStatusCode = (int)response.StatusCode;
             var body = await ReadResponseBodyAsync(response, timeoutSource.Token);
             result.ResponseBodySnippet = body.Snippet;
+            responseBody = body.Body;
 
             if (body.ExceededLimit)
             {
@@ -127,7 +133,7 @@ internal sealed partial class HttpMonitorExecutor(
                 result.LatencyMs);
         }
 
-        return result;
+        return new MonitorHttpExecutionResult(result, responseBody);
     }
 
     private SocketsHttpHandler CreateHandler() => new()
@@ -195,13 +201,12 @@ internal sealed partial class HttpMonitorExecutor(
         var maximumBytes = options.Value.MaxResponseBytes;
         if (response.Content.Headers.ContentLength > maximumBytes)
         {
-            return new ResponseBodyReadResult(null, true);
+            return new ResponseBodyReadResult(null, true, null);
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var buffer = new byte[81_920];
-        using var snippetBytes = new MemoryStream(
-            Math.Min(maximumBytes, options.Value.ResponseBodySnippetMaxChars * 4));
+        using var bodyBytes = new MemoryStream(Math.Min(maximumBytes, 81_920));
         var totalBytes = 0L;
 
         while (true)
@@ -213,26 +218,30 @@ internal sealed partial class HttpMonitorExecutor(
             }
 
             totalBytes += bytesRead;
-            var remainingSnippetBytes = Math.Max(
-                0,
-                options.Value.ResponseBodySnippetMaxChars * 4 - (int)snippetBytes.Length);
-            if (remainingSnippetBytes > 0)
+            var remainingBodyBytes = Math.Max(0, maximumBytes - (int)bodyBytes.Length);
+            if (remainingBodyBytes > 0)
             {
-                snippetBytes.Write(buffer, 0, Math.Min(bytesRead, remainingSnippetBytes));
+                bodyBytes.Write(buffer, 0, Math.Min(bytesRead, remainingBodyBytes));
             }
 
             if (totalBytes > maximumBytes)
             {
                 return new ResponseBodyReadResult(
-                    CreateSafeSnippet(response, snippetBytes.ToArray()),
-                    true);
+                    CreateSafeSnippet(response, bodyBytes.ToArray()),
+                    true,
+                    null);
             }
         }
 
+        var bytes = bodyBytes.ToArray();
         return new ResponseBodyReadResult(
-            CreateSafeSnippet(response, snippetBytes.ToArray()),
-            false);
+            CreateSafeSnippet(response, bytes),
+            false,
+            CreateResponseBody(bytes));
     }
+
+    private static string? CreateResponseBody(byte[] bytes) =>
+        bytes.Length == 0 ? null : Encoding.UTF8.GetString(bytes);
 
     private string? CreateSafeSnippet(HttpResponseMessage response, byte[] bytes)
     {
@@ -279,5 +288,5 @@ internal sealed partial class HttpMonitorExecutor(
         RegexOptions.CultureInvariant)]
     private static partial Regex SensitiveJsonPropertyRegex();
 
-    private sealed record ResponseBodyReadResult(string? Snippet, bool ExceededLimit);
+    private sealed record ResponseBodyReadResult(string? Snippet, bool ExceededLimit, string? Body);
 }
