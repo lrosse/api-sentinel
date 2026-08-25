@@ -30,6 +30,7 @@ internal sealed class MonitorRunner(
     IHttpMonitorExecutor executor,
     ISchemaStructureAnalyzer schemaAnalyzer,
     IContractSchemaComparer schemaComparer,
+    IMonitorRunIncidentEvaluator incidentEvaluator,
     IMonitorExecutionGate executionGate,
     ILogger<MonitorRunner> logger) : IMonitorRunner
 {
@@ -70,16 +71,26 @@ internal sealed class MonitorRunner(
         var checkRun = execution.CheckRun;
         dbContext.CheckRuns.Add(checkRun);
 
+        ContractChange? contractChange = null;
         if (checkRun.Status == CheckRunStatus.Success)
         {
-            await CaptureContractAsync(monitor, checkRun, execution.ResponseBody, cancellationToken);
+            contractChange = await CaptureContractAsync(
+                monitor,
+                checkRun,
+                execution.ResponseBody,
+                cancellationToken);
         }
 
+        await incidentEvaluator.EvaluateAsync(
+            monitor,
+            checkRun,
+            contractChange,
+            cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new MonitorRunResult(MonitorRunState.Completed, checkRun);
     }
 
-    private async Task CaptureContractAsync(
+    private async Task<ContractChange?> CaptureContractAsync(
         MonitorEntity monitor,
         CheckRun checkRun,
         string? responseBody,
@@ -108,7 +119,7 @@ internal sealed class MonitorRunner(
             snapshot.AnalysisStatus != SchemaAnalysisStatus.Complete ||
             previousSnapshot.StructureHash.Equals(snapshot.StructureHash, StringComparison.Ordinal))
         {
-            return;
+            return null;
         }
 
         var comparison = schemaComparer.Compare(
@@ -117,10 +128,10 @@ internal sealed class MonitorRunner(
             monitor.IgnoredPaths);
         if (comparison.Changes.Count == 0)
         {
-            return;
+            return null;
         }
 
-        dbContext.ContractChanges.Add(new ContractChange
+        var contractChange = new ContractChange
         {
             Id = Guid.NewGuid(),
             MonitorId = monitor.Id,
@@ -132,6 +143,8 @@ internal sealed class MonitorRunner(
             Monitor = monitor,
             FromSnapshot = previousSnapshot,
             ToSnapshot = snapshot
-        });
+        };
+        dbContext.ContractChanges.Add(contractChange);
+        return contractChange;
     }
 }

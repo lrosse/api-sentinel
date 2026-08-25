@@ -5,6 +5,7 @@
       <nav class="topbar__nav" aria-label="Navegação principal">
         <a class="topbar__link" routerLink="/dashboard">Dashboard</a>
         <a class="topbar__link topbar__link--active" routerLink="/catalog">Catálogo</a>
+        <a class="topbar__link" routerLink="/incidents">Incidentes</a>
       </nav>
     </div>
     <div class="topbar__account">
@@ -27,7 +28,7 @@
     } @else if (endpoint()) {
       <section class="page-heading page-heading--detail">
         <div>
-          <p class="eyebrow">Marco 4 · Detecção de mudança de contrato</p>
+          <p class="eyebrow">MVP completo · Monitoramento e incidentes</p>
           <h1>{{ endpoint()?.method }} {{ endpoint()?.path }}</h1>
           <code class="base-url">{{ apiService()?.baseUrl }}{{ endpoint()?.path }}</code>
         </div>
@@ -78,6 +79,17 @@
                 [(ngModel)]="maxLatencyMs"
                 min="1"
                 max="120000"
+              />
+            </label>
+            <label>
+              Falhas consecutivas para abrir incidente
+              <input
+                type="number"
+                name="consecutiveFailuresThreshold"
+                [(ngModel)]="consecutiveFailuresThreshold"
+                min="1"
+                max="100"
+                required
               />
             </label>
             <label>
@@ -156,6 +168,10 @@
                         >alerta futuro em <strong>{{ monitor.maxLatencyMs }} ms</strong></span
                       >
                     }
+                    <span>
+                      incidente após
+                      <strong>{{ monitor.consecutiveFailuresThreshold }} falhas</strong>
+                    </span>
                     <span>
                       @if (monitor.enabled) {
                         a cada <strong>{{ monitor.intervalSeconds }} s</strong>

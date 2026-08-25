@@ -1,6 +1,8 @@
 using ApiSentinel.Modules.ApiCatalog;
 using ApiSentinel.Modules.ApiCatalog.Domain;
 using ApiSentinel.Modules.Identity;
+using ApiSentinel.Modules.Incidents;
+using ApiSentinel.Modules.Incidents.Domain;
 using ApiSentinel.Modules.Monitoring;
 using ApiSentinel.Modules.Monitoring.Domain;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -11,7 +13,10 @@ using MonitorEntity = ApiSentinel.Modules.Monitoring.Domain.Monitor;
 namespace ApiSentinel.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
-    : IdentityDbContext<ApplicationUser>(options), IApiCatalogDbContext, IMonitoringDbContext
+    : IdentityDbContext<ApplicationUser>(options),
+        IApiCatalogDbContext,
+        IMonitoringDbContext,
+        IIncidentsDbContext
 {
     public DbSet<ApiService> ApiServices => Set<ApiService>();
     public DbSet<ApiEndpoint> Endpoints => Set<ApiEndpoint>();
@@ -19,6 +24,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CheckRun> CheckRuns => Set<CheckRun>();
     public DbSet<SchemaSnapshot> SchemaSnapshots => Set<SchemaSnapshot>();
     public DbSet<ContractChange> ContractChanges => Set<ContractChange>();
+    public DbSet<Incident> Incidents => Set<Incident>();
+    public DbSet<IncidentEvent> IncidentEvents => Set<IncidentEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -72,6 +79,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasKey(monitor => monitor.Id);
             entity.Property(monitor => monitor.TimeoutMs).IsRequired();
             entity.Property(monitor => monitor.ExpectedStatusCode).IsRequired();
+            entity.Property(monitor => monitor.ConsecutiveFailuresThreshold)
+                .HasDefaultValue(3)
+                .IsRequired();
             entity.Property(monitor => monitor.IntervalSeconds).IsRequired();
             entity.Property(monitor => monitor.Enabled).IsRequired();
             entity.Property(monitor => monitor.IgnoredPaths).IsRequired();
@@ -147,6 +157,62 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(change => change.ToSnapshot)
                 .WithMany()
                 .HasForeignKey(change => change.ToSnapshotId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<Incident>(entity =>
+        {
+            entity.ToTable("Incidents");
+            entity.HasKey(incident => incident.Id);
+            entity.Property(incident => incident.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .IsRequired();
+            entity.Property(incident => incident.OpenedAt).IsRequired();
+            entity.Property(incident => incident.TriggerReason)
+                .HasMaxLength(1_000)
+                .IsRequired();
+            entity.Property(incident => incident.RootCause).HasMaxLength(4_000);
+            entity.HasIndex(incident => new { incident.MonitorId, incident.Status })
+                .IsUnique()
+                .HasFilter("[Status] = 'Open'");
+            entity.HasIndex(incident => incident.OpenedAt);
+            entity.HasOne(incident => incident.Monitor)
+                .WithMany()
+                .HasForeignKey(incident => incident.MonitorId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<IncidentEvent>(entity =>
+        {
+            entity.ToTable("IncidentEvents");
+            entity.HasKey(incidentEvent => incidentEvent.Id);
+            entity.Property(incidentEvent => incidentEvent.OccurredAt).IsRequired();
+            entity.Property(incidentEvent => incidentEvent.EventType)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+            entity.Property(incidentEvent => incidentEvent.Description)
+                .HasMaxLength(2_000)
+                .IsRequired();
+            entity.HasIndex(incidentEvent => new
+            {
+                incidentEvent.IncidentId,
+                incidentEvent.OccurredAt
+            });
+            entity.HasIndex(incidentEvent => incidentEvent.RelatedCheckRunId);
+            entity.HasIndex(incidentEvent => incidentEvent.RelatedContractChangeId);
+            entity.HasOne(incidentEvent => incidentEvent.Incident)
+                .WithMany(incident => incident.Events)
+                .HasForeignKey(incidentEvent => incidentEvent.IncidentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(incidentEvent => incidentEvent.RelatedCheckRun)
+                .WithMany()
+                .HasForeignKey(incidentEvent => incidentEvent.RelatedCheckRunId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(incidentEvent => incidentEvent.RelatedContractChange)
+                .WithMany()
+                .HasForeignKey(incidentEvent => incidentEvent.RelatedContractChangeId)
                 .OnDelete(DeleteBehavior.NoAction);
         });
     }

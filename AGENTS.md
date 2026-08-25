@@ -62,9 +62,12 @@ revisada explicitamente com o usuário.
    e commitado**.
 1. Autenticação por cookie + catálogo mínimo (`ApiService`, `Endpoint`) — **concluído**.
 2. Executor HTTP manual protegido contra SSRF + histórico — **concluído**.
-3. Agendamento (Hangfire) + dashboard mínimo.
-4. Diff estrutural recursivo + detecção de mudança de contrato.
-5. Incidentes (Open/Recovered/Resolved) + testes E2E + demo reproduzível.
+3. Agendamento (Hangfire) + dashboard mínimo — **concluído**.
+4. Diff estrutural recursivo + detecção de mudança de contrato — **concluído**.
+5. Incidentes (Open/Recovered/Resolved) + testes E2E + demo reproduzível — **concluído**.
+
+O MVP está funcionalmente completo. Os itens explicitamente fora do MVP continuam sujeitos a
+uma decisão consciente de v2/v3 antes de entrarem no escopo.
 
 ## Particularidades do ambiente local (não é bug do projeto)
 

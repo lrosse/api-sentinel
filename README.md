@@ -1,10 +1,11 @@
 # API Sentinel
 
-Plataforma para monitoramento de APIs e detecção de mudanças de contrato.
+Plataforma pessoal para monitoramento de APIs, detecção de mudanças de contrato e gestão do
+ciclo de incidentes.
 
-> O projeto está no **Marco 4**. Além da infraestrutura, autenticação, catálogo, execução
-> protegida contra SSRF e agendamento via Hangfire, o sistema captura snapshots estruturais e
-> detecta mudanças compatíveis ou quebradoras no contrato das respostas.
+> O **MVP está funcionalmente completo**. O produto cobre infraestrutura reproduzível,
+> autenticação, catálogo, execução HTTP protegida contra SSRF, agendamento, diff estrutural
+> recursivo e incidentes automáticos com recuperação e resolução manual.
 
 ## Pré-requisitos
 
@@ -19,7 +20,8 @@ No PowerShell, a partir da raiz do repositório:
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build
+docker compose up --build -d
+docker compose ps
 ```
 
 Antes de usar o ambiente fora de uma máquina local, troque a senha de desenvolvimento em
@@ -74,7 +76,7 @@ Essas credenciais são exclusivamente para desenvolvimento local. O código exig
 tempo `SeedData:Enabled=true` e ambiente `Development`; se a flag for ligada em qualquer outro
 ambiente, a aplicação recusa a inicialização.
 
-## Autenticação, catálogo e monitoramento
+## Produto completo
 
 Abra o cliente Angular, crie uma conta e use a tela de catálogo para cadastrar APIs e seus
 endpoints. Cada registro fica obrigatoriamente vinculado ao usuário autenticado; tentativas de
@@ -89,8 +91,9 @@ efêmero do container da API.
 Na tela da API, abra um endpoint pelo link **Monitores**. A tela de detalhe permite criar mais
 de um monitor para a mesma rota, configurar timeout e status esperado, usar **Testar agora** e
 consultar as últimas 50 execuções. Cada monitor também possui um intervalo e pode ter o
-agendamento pausado e retomado sem apagar o histórico. Recurring jobs nativos do Hangfire têm
-granularidade de minuto, então o backend rejeita intervalos menores que 60 segundos.
+agendamento pausado e retomado sem apagar o histórico. O campo **Falhas consecutivas para abrir
+incidente** define o limiar por monitor e usa `3` como padrão. Recurring jobs nativos do Hangfire
+têm granularidade de minuto, então o backend rejeita intervalos menores que 60 segundos.
 
 Cada execução bem-sucedida também cria um `SchemaSnapshot` contendo somente a lista canônica
 de paths e tipos — valores da resposta nunca são persistidos nem comparados. O diff é recursivo,
@@ -104,8 +107,20 @@ um diff parcial potencialmente enganoso. A tela do monitor mostra o estado mais 
 contrato e o histórico detalhado das mudanças por path.
 
 A home autenticada é o dashboard (`/dashboard`). Ela carrega um único resumo agregado por API,
-com o último status, horário, latência e a sequência atual de falhas de cada monitor. A sequência
-é apenas visual neste marco; ainda não cria incidentes.
+com o último status, horário, latência, sequência atual de falhas, limiar configurado e incidente
+ativo de cada monitor.
+
+Uma falha abre um incidente quando a sequência alcança o limiar do monitor. Falhas posteriores
+acrescentam evidências ao mesmo incidente aberto, sem duplicá-lo. Uma mudança de contrato
+classificada como `Breaking` abre o incidente imediatamente, sem esperar o limiar. A primeira
+execução saudável seguinte move automaticamente o estado de `Open` para `Recovered`; somente o
+usuário confirma `Resolved` na tela de detalhe. A causa raiz é texto livre opcional e nunca é
+inferida ou preenchida pelo sistema.
+
+A seção **Incidentes** lista todos os estados, permite filtrar por status e mostra a linha do
+tempo com as execuções e mudanças de contrato relacionadas. O fluxo normal é
+`Open → Recovered → Resolved`, embora a UI também permita resolver manualmente um incidente ainda
+aberto quando isso for necessário.
 
 O executor aceita somente HTTP/HTTPS, aplica timeout, até três redirecionamentos e no máximo
 1 MB de resposta. Antes da chamada e dentro de `SocketsHttpHandler.ConnectCallback`, o host é
@@ -122,12 +137,16 @@ Endpoints disponíveis:
 - contratos: `/monitors/{id}/contract-changes` e
   `/monitors/{id}/schema-snapshot/latest`;
 - dashboard: `/dashboard/summary`.
+- incidentes: `GET /incidents`, `GET /incidents/{id}` e
+  `POST /incidents/{id}/resolve`.
 
-Todos os endpoints do catálogo exigem um cookie de autenticação válido.
+Todos os endpoints de catálogo, monitoramento, dashboard e incidentes exigem um cookie de
+autenticação válido e aplicam isolamento por proprietário com resposta `404` para recursos de
+outro usuário.
 
 ## Testes
 
-Para executar a suíte de integração dos Marcos 1 a 4:
+Para executar a suíte completa de integração dos Marcos 1 a 5:
 
 ```powershell
 dotnet test src/ApiSentinel.sln
@@ -148,7 +167,45 @@ dos dois mocks, timeout, limite de resposta, sanitização do trecho do corpo, a
 automático, pausa/retomada, remoção de recurring jobs, concorrência manual × agendada e
 isolamento do dashboard por usuário. O Marco 4 acrescenta cobertura para adição, remoção e
 troca de tipo, path aninhado, arrays de objetos, paths ignorados, snapshots idênticos, limites
-de profundidade/campos e a deriva controlada `v1 → v2 → v3`.
+de profundidade/campos e a deriva controlada `v1 → v2 → v3`. O Marco 5 valida limiar de falhas,
+ausência de duplicação, evidências, recuperação automática, abertura imediata por mudança
+quebradora, resolução manual com causa raiz, autorização e o fluxo HTTP completo do cadastro ao
+estado `Resolved`.
+
+## Demo reproduzível do MVP do zero
+
+O bootstrap aplica migrations e o seed é idempotente. A partir da raiz, sem remover volumes:
+
+```powershell
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
+$env:SEED_DEV_DATA = "true"
+docker compose down
+docker compose up --build -d
+Remove-Item Env:SEED_DEV_DATA
+docker compose ps
+Start-Process http://127.0.0.1:4200
+```
+
+Espere todos os serviços aparecerem como `healthy`. Entre com `dev@apisentinel.local` /
+`DevSentinel#2026`; o seed já fornece duas APIs, seus endpoints e monitores ativos. O SQL Server
+não precisa estar instalado na máquina.
+
+### Fluxo manual exato: falha → recuperação → resolução
+
+1. Em **Catálogo**, cadastre uma API chamada `Demo Incidentes`, com URL base
+   `http://mock-api-1:8080`.
+2. Adicione o endpoint `GET /produtos?falhar=true`, abra **Monitores** e crie um monitor com
+   status esperado `200`, limiar `3` e **Agendamento ativo** desmarcado.
+3. Clique em **Testar agora** três vezes. Cada execução deve mostrar `Falha`/HTTP 500; na terceira,
+   abra **Incidentes** e confirme um incidente `Aberto` com motivo `3 falhas consecutivas.`.
+4. Clique em **Testar agora** uma quarta vez e abra o detalhe do mesmo incidente. A timeline deve
+   conter **Evidência adicionada**, sem um segundo incidente.
+5. Volte à API `Demo Incidentes`, altere o endpoint para `/produtos`, retorne ao monitor e clique em
+   **Testar agora**. A execução deve ter sucesso e o incidente deve mudar automaticamente para
+   `Recuperado`.
+6. No detalhe do incidente, informe opcionalmente uma causa raiz confirmada e clique em
+   **Confirmar resolução**. O estado final deve ser `Resolvido`, com o evento de resolução manual
+   na timeline.
 
 ## Demonstração manual da deriva de contrato
 
@@ -188,7 +245,8 @@ docker compose ps mock-api-1
 ```
 
 O estado esperado é **Mudança quebradora detectada**, com `nome` como `Removido` e `id` como
-`Tipo alterado` (`Number → String`). Para devolver o mock ao contrato original:
+`Tipo alterado` (`Number → String`). Essa execução também abre imediatamente um incidente com
+origem na mudança quebradora. Para devolver o mock ao contrato original:
 
 ```powershell
 $env:CONTRACT_MODE = "v1"
@@ -227,3 +285,11 @@ docker compose up --build -d
 
 Use `docker compose down --volumes` somente quando um teste de ambiente totalmente limpo for
 pedido explicitamente; esse comando apaga os dados locais do SQL Server.
+
+## Deliberadamente fora do MVP
+
+O escopo final não inclui organizações/RBAC, múltiplos ambientes, importação OpenAPI, Redis,
+notificações por e-mail ou webhook, resumo por IA, OpenTelemetry, página pública de status,
+SDK/CLI nem cobrança. São possibilidades de v2/v3, não dependências ocultas do produto atual.
+Antes de qualquer exposição pública, o dashboard do Hangfire também deve receber autenticação
+própria; em desenvolvimento local ele permanece aberto como dívida técnica conhecida.

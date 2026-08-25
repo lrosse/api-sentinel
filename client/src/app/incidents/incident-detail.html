@@ -1,0 +1,142 @@
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar__navigation">
+      <a class="brand" routerLink="/dashboard">API Sentinel</a>
+      <nav class="topbar__nav" aria-label="Navegação principal">
+        <a class="topbar__link" routerLink="/dashboard">Dashboard</a>
+        <a class="topbar__link" routerLink="/catalog">Catálogo</a>
+        <a class="topbar__link topbar__link--active" routerLink="/incidents">Incidentes</a>
+      </nav>
+    </div>
+    <div class="topbar__account">
+      <span>{{ currentUser()?.email }}</span>
+      <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <a class="back-link" routerLink="/incidents">← Voltar aos incidentes</a>
+
+    @if (error()) {
+      <p class="alert" role="alert">{{ error() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="panel empty-state">Carregando incidente…</p>
+    } @else if (incident(); as current) {
+      <section class="page-heading page-heading--detail">
+        <div>
+          <p class="eyebrow">Linha do tempo operacional</p>
+          <h1>{{ current.monitor.apiServiceName }}</h1>
+          <p class="incident-endpoint">
+            <span class="method method--{{ current.monitor.endpointMethod.toLowerCase() }}">{{
+              current.monitor.endpointMethod
+            }}</span>
+            <code>{{ current.monitor.endpointPath }}</code>
+          </p>
+        </div>
+        <span class="incident-status incident-status--{{ current.status.toLowerCase() }}">
+          {{ statusLabel(current.status) }}
+        </span>
+      </section>
+
+      <div class="incident-detail-layout">
+        <section class="panel" aria-labelledby="incident-summary-title">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__kicker">Motivo automático</p>
+              <h2 id="incident-summary-title">Resumo</h2>
+            </div>
+          </div>
+          <p class="incident-reason">{{ current.triggerReason }}</p>
+          <dl class="incident-dates">
+            <div>
+              <dt>Aberto</dt>
+              <dd>{{ current.openedAt | date: 'dd/MM/yyyy HH:mm:ss' }}</dd>
+            </div>
+            <div>
+              <dt>Recuperado</dt>
+              <dd>
+                {{
+                  current.recoveredAt ? (current.recoveredAt | date: 'dd/MM/yyyy HH:mm:ss') : '—'
+                }}
+              </dd>
+            </div>
+            <div>
+              <dt>Resolvido</dt>
+              <dd>
+                {{ current.resolvedAt ? (current.resolvedAt | date: 'dd/MM/yyyy HH:mm:ss') : '—' }}
+              </dd>
+            </div>
+          </dl>
+
+          @if (current.status !== 'Resolved') {
+            <form class="resolve-form" (ngSubmit)="resolve()">
+              <label>
+                Causa raiz <span class="optional">opcional e sempre informada por você</span>
+                <textarea
+                  name="rootCause"
+                  [(ngModel)]="rootCause"
+                  maxlength="4000"
+                  rows="5"
+                  placeholder="Descreva a causa confirmada, se conhecida."
+                ></textarea>
+              </label>
+              <p class="field-hint">
+                O fluxo normal é confirmar depois da recuperação automática. Também é possível
+                resolver manualmente enquanto o incidente está aberto.
+              </p>
+              <button
+                class="button button--primary button--full"
+                type="submit"
+                [disabled]="resolving()"
+              >
+                {{ resolving() ? 'Resolvendo…' : 'Confirmar resolução' }}
+              </button>
+            </form>
+          } @else {
+            <div class="root-cause">
+              <p class="panel__kicker">Causa raiz informada</p>
+              <p>{{ current.rootCause || 'Não informada.' }}</p>
+            </div>
+          }
+        </section>
+
+        <section class="panel" aria-labelledby="timeline-title">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__kicker">Evidências e transições</p>
+              <h2 id="timeline-title">Linha do tempo</h2>
+            </div>
+          </div>
+          <ol class="incident-timeline">
+            @for (event of current.events; track event.id) {
+              <li>
+                <span class="timeline-dot" aria-hidden="true"></span>
+                <div>
+                  <div class="timeline-heading">
+                    <strong>{{ eventLabel(event.eventType) }}</strong>
+                    <time [attr.datetime]="event.occurredAt">{{
+                      event.occurredAt | date: 'dd/MM/yyyy HH:mm:ss'
+                    }}</time>
+                  </div>
+                  <p>{{ event.description }}</p>
+                  @if (event.relatedCheckRunId || event.relatedContractChangeId) {
+                    <small>
+                      @if (event.relatedCheckRunId) {
+                        CheckRun {{ event.relatedCheckRunId }}
+                      }
+                      @if (event.relatedContractChangeId) {
+                        · ContractChange {{ event.relatedContractChangeId }}
+                      }
+                    </small>
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+        </section>
+      </div>
+    }
+  </main>
+</div>

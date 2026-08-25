@@ -5,6 +5,7 @@
       <nav class="topbar__nav" aria-label="Navegação principal">
         <a class="topbar__link topbar__link--active" routerLink="/dashboard">Dashboard</a>
         <a class="topbar__link" routerLink="/catalog">Catálogo</a>
+        <a class="topbar__link" routerLink="/incidents">Incidentes</a>
       </nav>
     </div>
     <div class="topbar__account">
@@ -16,7 +17,7 @@
   <main class="page">
     <section class="page-heading">
       <div>
-        <p class="eyebrow">Marco 3 · Visão operacional</p>
+        <p class="eyebrow">MVP completo · Visão operacional</p>
         <h1>Dashboard</h1>
         <p class="muted">O último estado de cada monitor, agregado por API.</p>
       </div>
@@ -70,12 +71,13 @@
                       <th>Última execução</th>
                       <th>Latência</th>
                       <th>Falhas consecutivas</th>
+                      <th>Incidente</th>
                       <th>Agendamento</th>
                     </tr>
                   </thead>
                   <tbody>
                     @for (monitor of apiService.monitors; track monitor.id) {
-                      <tr>
+                      <tr [class.dashboard-row--incident]="monitor.activeIncident">
                         <td>
                           <a
                             class="dashboard-endpoint"
@@ -111,8 +113,25 @@
                         <td>{{ monitor.lastRun ? monitor.lastRun.latencyMs + ' ms' : '—' }}</td>
                         <td>
                           <strong [class.failure-count]="monitor.consecutiveFailures > 0">
-                            {{ monitor.consecutiveFailures }}
+                            {{ monitor.consecutiveFailures }} /
+                            {{ monitor.consecutiveFailuresThreshold }}
                           </strong>
+                        </td>
+                        <td>
+                          @if (monitor.activeIncident) {
+                            <a
+                              class="incident-status incident-status--{{
+                                monitor.activeIncident.status.toLowerCase()
+                              }}"
+                              [routerLink]="['/incidents', monitor.activeIncident.id]"
+                            >
+                              {{
+                                monitor.activeIncident.status === 'Open' ? 'Aberto' : 'Recuperado'
+                              }}
+                            </a>
+                          } @else {
+                            <span class="muted">—</span>
+                          }
                         </td>
                         <td>
                           <span

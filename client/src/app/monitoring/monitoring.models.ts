@@ -4,6 +4,7 @@ export interface ApiMonitor {
   timeoutMs: number;
   expectedStatusCode: number;
   maxLatencyMs: number | null;
+  consecutiveFailuresThreshold: number;
   intervalSeconds: number;
   enabled: boolean;
   ignoredPaths: string[];
@@ -13,6 +14,7 @@ export interface MonitorInput {
   timeoutMs: number;
   expectedStatusCode: number;
   maxLatencyMs: number | null;
+  consecutiveFailuresThreshold: number;
   intervalSeconds: number;
   enabled: boolean;
   ignoredPaths: string[];

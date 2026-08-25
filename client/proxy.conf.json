@@ -34,5 +34,11 @@
     "secure": false,
     "changeOrigin": true,
     "logLevel": "info"
+  },
+  "/incidents": {
+    "target": "http://api:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
   }
 }

@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ApiSentinel.Modules.ApiCatalog\ApiSentinel.Modules.ApiCatalog.csproj" />
     <ProjectReference Include="..\ApiSentinel.Modules.Identity\ApiSentinel.Modules.Identity.csproj" />
+    <ProjectReference Include="..\ApiSentinel.Modules.Incidents\ApiSentinel.Modules.Incidents.csproj" />
     <ProjectReference Include="..\ApiSentinel.Modules.Monitoring\ApiSentinel.Modules.Monitoring.csproj" />
   </ItemGroup>
 

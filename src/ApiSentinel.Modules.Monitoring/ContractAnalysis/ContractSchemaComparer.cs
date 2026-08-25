@@ -20,7 +20,7 @@ public sealed class ContractSchemaComparer : IContractSchemaComparer
         Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
     };
 
-    internal static IReadOnlyCollection<ContractFieldChange> DeserializeChanges(string changesJson) =>
+    public static IReadOnlyCollection<ContractFieldChange> DeserializeChanges(string changesJson) =>
         JsonSerializer.Deserialize<ContractFieldChange[]>(changesJson, SerializerOptions) ?? [];
 
     public ContractComparisonResult Compare(

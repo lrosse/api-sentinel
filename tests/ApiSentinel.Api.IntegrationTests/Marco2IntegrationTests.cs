@@ -409,8 +409,12 @@ internal sealed class LocalHttpMockServer : IAsyncDisposable
                     contentType = "application/json";
                 }
 
+                var fails = target.Contains("falhar=true", StringComparison.OrdinalIgnoreCase);
+                var statusLine = fails
+                    ? "HTTP/1.1 500 Internal Server Error\r\n"
+                    : "HTTP/1.1 200 OK\r\n";
                 var headers = Encoding.ASCII.GetBytes(
-                    "HTTP/1.1 200 OK\r\n" +
+                    statusLine +
                     $"Content-Type: {contentType}\r\n" +
                     $"Content-Length: {body.Length}\r\n" +
                     "Connection: close\r\n\r\n");

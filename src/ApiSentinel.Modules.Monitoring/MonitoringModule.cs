@@ -23,6 +23,8 @@ public static class MonitoringModule
     private const int MaximumIgnoredPathLength = 512;
     private const int MinimumIntervalSeconds = 60;
     private const int MaximumIntervalSeconds = 86_400;
+    private const int MinimumConsecutiveFailuresThreshold = 1;
+    private const int MaximumConsecutiveFailuresThreshold = 100;
 
     public static IServiceCollection AddMonitoringModule(
         this IServiceCollection services,
@@ -60,6 +62,8 @@ public static class MonitoringModule
         services.AddSingleton<ISchemaStructureAnalyzer, SchemaStructureAnalyzer>();
         services.AddSingleton<IContractSchemaComparer, ContractSchemaComparer>();
         services.AddScoped<IMonitorRunner, MonitorRunner>();
+        services.TryAddScoped<IMonitorRunIncidentEvaluator, DisabledMonitorRunIncidentEvaluator>();
+        services.TryAddScoped<IActiveIncidentReader, EmptyActiveIncidentReader>();
         services.AddScoped<IScheduledMonitorJob, ScheduledMonitorJob>();
         services.TryAddSingleton<IMonitorScheduleManager, DisabledMonitorScheduleManager>();
         return services;
@@ -131,6 +135,7 @@ public static class MonitoringModule
             TimeoutMs = request.TimeoutMs,
             ExpectedStatusCode = request.ExpectedStatusCode,
             MaxLatencyMs = request.MaxLatencyMs,
+            ConsecutiveFailuresThreshold = request.ConsecutiveFailuresThreshold,
             IntervalSeconds = request.IntervalSeconds,
             Enabled = request.Enabled,
             IgnoredPaths = NormalizeIgnoredPaths(request.IgnoredPaths)
@@ -212,6 +217,7 @@ public static class MonitoringModule
         monitor.TimeoutMs = request.TimeoutMs;
         monitor.ExpectedStatusCode = request.ExpectedStatusCode;
         monitor.MaxLatencyMs = request.MaxLatencyMs;
+        monitor.ConsecutiveFailuresThreshold = request.ConsecutiveFailuresThreshold;
         monitor.IntervalSeconds = request.IntervalSeconds;
         monitor.Enabled = request.Enabled;
         monitor.IgnoredPaths = NormalizeIgnoredPaths(request.IgnoredPaths);
@@ -390,6 +396,7 @@ public static class MonitoringModule
     private static async Task<IResult> GetDashboardSummaryAsync(
         ClaimsPrincipal principal,
         IMonitoringDbContext dbContext,
+        IActiveIncidentReader activeIncidentReader,
         CancellationToken cancellationToken)
     {
         var ownerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -421,12 +428,15 @@ public static class MonitoringModule
                 monitor.Endpoint.Method.ToString(),
                 monitor.Endpoint.Path,
                 monitor.Enabled,
-                monitor.IntervalSeconds))
+                monitor.IntervalSeconds,
+                monitor.ConsecutiveFailuresThreshold))
             .ToListAsync(cancellationToken);
 
         var monitorIds = monitors.Select(monitor => monitor.Id).ToArray();
         var latestRunsByMonitor = new Dictionary<Guid, DashboardCheckRunResponse>();
         var consecutiveFailuresByMonitor = new Dictionary<Guid, int>();
+        IReadOnlyDictionary<Guid, ActiveIncidentSummary> activeIncidentsByMonitor =
+            new Dictionary<Guid, ActiveIncidentSummary>();
 
         if (monitorIds.Length > 0)
         {
@@ -479,6 +489,10 @@ public static class MonitoringModule
                 .GroupBy(run => run.MonitorId)
                 .Select(group => new { MonitorId = group.Key, Count = group.Count() })
                 .ToDictionaryAsync(item => item.MonitorId, item => item.Count, cancellationToken);
+
+            activeIncidentsByMonitor = await activeIncidentReader.GetActiveByMonitorAsync(
+                monitorIds,
+                cancellationToken);
         }
 
         var monitorsByApiService = monitors
@@ -494,7 +508,9 @@ public static class MonitoringModule
                         monitor.Enabled,
                         monitor.IntervalSeconds,
                         latestRunsByMonitor.GetValueOrDefault(monitor.Id),
-                        consecutiveFailuresByMonitor.GetValueOrDefault(monitor.Id)))
+                        consecutiveFailuresByMonitor.GetValueOrDefault(monitor.Id),
+                        monitor.ConsecutiveFailuresThreshold,
+                        activeIncidentsByMonitor.GetValueOrDefault(monitor.Id)))
                     .ToList());
 
         var response = apiServices
@@ -533,6 +549,16 @@ public static class MonitoringModule
             [
                 $"O intervalo deve ficar entre {MinimumIntervalSeconds} e {MaximumIntervalSeconds} segundos " +
                 "e dividir exatamente uma hora ou um dia."
+            ];
+        }
+
+        if (request.ConsecutiveFailuresThreshold is < MinimumConsecutiveFailuresThreshold or
+            > MaximumConsecutiveFailuresThreshold)
+        {
+            errors["consecutiveFailuresThreshold"] =
+            [
+                $"O limite de falhas consecutivas deve ficar entre " +
+                $"{MinimumConsecutiveFailuresThreshold} e {MaximumConsecutiveFailuresThreshold}."
             ];
         }
 
@@ -579,6 +605,7 @@ public static class MonitoringModule
             monitor.TimeoutMs,
             monitor.ExpectedStatusCode,
             monitor.MaxLatencyMs,
+            monitor.ConsecutiveFailuresThreshold,
             monitor.IntervalSeconds,
             monitor.Enabled,
             monitor.IgnoredPaths);
@@ -623,7 +650,8 @@ public static class MonitoringModule
         int? MaxLatencyMs,
         IReadOnlyCollection<string>? IgnoredPaths,
         int IntervalSeconds = 300,
-        bool Enabled = true);
+        bool Enabled = true,
+        int ConsecutiveFailuresThreshold = 3);
 
     public sealed record MonitorResponse(
         Guid Id,
@@ -631,6 +659,7 @@ public static class MonitoringModule
         int TimeoutMs,
         int ExpectedStatusCode,
         int? MaxLatencyMs,
+        int ConsecutiveFailuresThreshold,
         int IntervalSeconds,
         bool Enabled,
         IReadOnlyCollection<string> IgnoredPaths);
@@ -672,7 +701,8 @@ public static class MonitoringModule
         string EndpointMethod,
         string EndpointPath,
         bool Enabled,
-        int IntervalSeconds);
+        int IntervalSeconds,
+        int ConsecutiveFailuresThreshold);
 
     private sealed record DashboardLatestRunRow(
         Guid MonitorId,
@@ -694,7 +724,9 @@ public static class MonitoringModule
         bool Enabled,
         int IntervalSeconds,
         DashboardCheckRunResponse? LastRun,
-        int ConsecutiveFailures);
+        int ConsecutiveFailures,
+        int ConsecutiveFailuresThreshold,
+        ActiveIncidentSummary? ActiveIncident);
 
     public sealed record DashboardCheckRunResponse(
         CheckRunStatus Status,

@@ -48,6 +48,7 @@ export class EndpointDetail implements OnInit {
   protected timeoutMs = 5_000;
   protected expectedStatusCode = 200;
   protected maxLatencyMs: number | null = null;
+  protected consecutiveFailuresThreshold = 3;
   protected intervalSeconds = 300;
   protected enabled = true;
   protected ignoredPaths = '';
@@ -90,6 +91,7 @@ export class EndpointDetail implements OnInit {
     this.timeoutMs = monitor.timeoutMs;
     this.expectedStatusCode = monitor.expectedStatusCode;
     this.maxLatencyMs = monitor.maxLatencyMs;
+    this.consecutiveFailuresThreshold = monitor.consecutiveFailuresThreshold;
     this.intervalSeconds = monitor.intervalSeconds;
     this.enabled = monitor.enabled;
     this.ignoredPaths = monitor.ignoredPaths.join(', ');
@@ -100,6 +102,7 @@ export class EndpointDetail implements OnInit {
     this.timeoutMs = 5_000;
     this.expectedStatusCode = 200;
     this.maxLatencyMs = null;
+    this.consecutiveFailuresThreshold = 3;
     this.intervalSeconds = 300;
     this.enabled = true;
     this.ignoredPaths = '';
@@ -267,6 +270,7 @@ export class EndpointDetail implements OnInit {
       timeoutMs: Number(this.timeoutMs),
       expectedStatusCode: Number(this.expectedStatusCode),
       maxLatencyMs: this.maxLatencyMs ? Number(this.maxLatencyMs) : null,
+      consecutiveFailuresThreshold: Number(this.consecutiveFailuresThreshold),
       intervalSeconds: Number(this.intervalSeconds),
       enabled: this.enabled,
       ignoredPaths: this.ignoredPaths

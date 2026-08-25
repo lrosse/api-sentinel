@@ -2,6 +2,7 @@ using ApiSentinel.Infrastructure.Persistence;
 using ApiSentinel.Infrastructure.Scheduling;
 using ApiSentinel.Modules.ApiCatalog;
 using ApiSentinel.Modules.Identity;
+using ApiSentinel.Modules.Incidents;
 using ApiSentinel.Modules.Monitoring;
 using ApiSentinel.Modules.Monitoring.Scheduling;
 using Hangfire;
@@ -34,6 +35,8 @@ public static class DependencyInjection
         services.AddScoped<IApiCatalogDbContext>(provider =>
             provider.GetRequiredService<AppDbContext>());
         services.AddScoped<IMonitoringDbContext>(provider =>
+            provider.GetRequiredService<AppDbContext>());
+        services.AddScoped<IIncidentsDbContext>(provider =>
             provider.GetRequiredService<AppDbContext>());
 
         var dataProtection = services

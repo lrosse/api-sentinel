@@ -117,6 +117,7 @@ public static class DevelopmentDataSeeder
                     TimeoutMs = 5_000,
                     ExpectedStatusCode = 200,
                     MaxLatencyMs = null,
+                    ConsecutiveFailuresThreshold = 3,
                     IntervalSeconds = MonitorIntervalSeconds,
                     Enabled = true,
                     IgnoredPaths = []

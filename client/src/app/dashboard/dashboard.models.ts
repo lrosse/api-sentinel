@@ -16,6 +16,13 @@ export interface DashboardMonitor {
   intervalSeconds: number;
   lastRun: DashboardCheckRun | null;
   consecutiveFailures: number;
+  consecutiveFailuresThreshold: number;
+  activeIncident: DashboardActiveIncident | null;
+}
+
+export interface DashboardActiveIncident {
+  id: string;
+  status: 'Open' | 'Recovered';
 }
 
 export interface DashboardApiService {

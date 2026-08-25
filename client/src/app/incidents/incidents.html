@@ -1,0 +1,74 @@
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar__navigation">
+      <a class="brand" routerLink="/dashboard">API Sentinel</a>
+      <nav class="topbar__nav" aria-label="Navegação principal">
+        <a class="topbar__link" routerLink="/dashboard">Dashboard</a>
+        <a class="topbar__link" routerLink="/catalog">Catálogo</a>
+        <a class="topbar__link topbar__link--active" routerLink="/incidents">Incidentes</a>
+      </nav>
+    </div>
+    <div class="topbar__account">
+      <span>{{ currentUser()?.email }}</span>
+      <button class="button button--ghost" type="button" (click)="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">Marco 5 · Ciclo operacional</p>
+        <h1>Incidentes</h1>
+        <p class="muted">Falhas e mudanças quebradoras que exigem acompanhamento.</p>
+      </div>
+      <label class="incident-filter">
+        Status
+        <select name="statusFilter" [(ngModel)]="statusFilter" (ngModelChange)="filterChanged()">
+          <option value="">Todos</option>
+          <option value="Open">Abertos</option>
+          <option value="Recovered">Recuperados</option>
+          <option value="Resolved">Resolvidos</option>
+        </select>
+      </label>
+    </section>
+
+    @if (error()) {
+      <p class="alert" role="alert">{{ error() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="panel empty-state">Carregando incidentes…</p>
+    } @else if (incidents().length === 0) {
+      <div class="panel empty-state">
+        <strong>Nenhum incidente encontrado.</strong>
+        <span>Execuções saudáveis não geram incidentes.</span>
+      </div>
+    } @else {
+      <section class="incident-list" aria-label="Incidentes">
+        @for (incident of incidents(); track incident.id) {
+          <a class="panel incident-card" [routerLink]="['/incidents', incident.id]">
+            <div class="incident-card__heading">
+              <div>
+                <p class="panel__kicker">{{ incident.monitor.apiServiceName }}</p>
+                <h2>
+                  <span
+                    class="method method--{{ incident.monitor.endpointMethod.toLowerCase() }}"
+                    >{{ incident.monitor.endpointMethod }}</span
+                  >
+                  <code>{{ incident.monitor.endpointPath }}</code>
+                </h2>
+              </div>
+              <span class="incident-status incident-status--{{ incident.status.toLowerCase() }}">
+                {{ statusLabel(incident.status) }}
+              </span>
+            </div>
+            <p class="incident-reason">{{ incident.triggerReason }}</p>
+            <time [attr.datetime]="incident.openedAt">
+              Aberto em {{ incident.openedAt | date: 'dd/MM/yyyy HH:mm:ss' }}
+            </time>
+          </a>
+        }
+      </section>
+    }
+  </main>
+</div>
